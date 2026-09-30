@@ -1,3 +1,7 @@
+# Website:
+
+https://malgacha-production.up.railway.app/
+
 ![MALGacha first look](https://files.catbox.moe/m6mrb2.png)
 
 # MALGacha
