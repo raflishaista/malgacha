@@ -2,9 +2,9 @@
 
 # MALGacha
 
-Roll for your "literally who" squad from animanga
+Roll for your "literally who" squad from animanga.
 
-Other sites and other mediums (video games, movies, etc) might get added soon
+Other sites and other mediums (video games, movies, etc) might get added soon.
 
 ## Run locally
 
@@ -63,7 +63,9 @@ npm run build
 npm start
 ```
 
-`npm start` loads `.env` and serves the adapter-node build on port 3000. Set `ORIGIN` to the actual production origin. Tests use temporary storage and fake providers; they do not scrape MAL or consume Tenrai quota.
+`npm start` uses environment variables supplied by the host (including Railway); it does not require a `.env` file. Set `MAL_CLIENT_ID` and `ORIGIN` in the app service's environment, with `ORIGIN` set to the actual HTTPS production origin. Railway's supplied `PORT` is used automatically; otherwise the server defaults to port 3000. If using Railway shared project variables, make sure they are referenced by the app service. Use `npm run build` as the build command and `npm start` as the start command; remove any custom start command containing `--env-file`.
+
+For a local production run that loads `.env`, use `npm run start:local` after building. `npm run dev` continues loading `.env` through Vite. Tests use temporary storage and fake providers; they do not scrape MAL or consume Tenrai quota.
 
 ## Deployment boundary and next steps
 
