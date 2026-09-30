@@ -103,7 +103,7 @@ export function createProviders(clientId: () => string | undefined): Providers {
         if (!Number.isInteger(c?.mal_id) || typeof c?.name !== 'string') throw new Error('Tenrai returned an incomplete character.');
         const sourceImage = c.images?.webp?.image_url || c.images?.jpg?.image_url;
         const image = typeof sourceImage === 'string' && sourceImage.startsWith('https://cdn.myanimelist.net/') ? sourceImage : null;
-        return { id: c.mal_id, name: c.name, image, url: `https://myanimelist.net/character/${c.mal_id}` };
+        return { id: c.mal_id, name: c.name, image, favorites: Number.isSafeInteger(item.favorites) && item.favorites >= 0 ? item.favorites : null, url: `https://myanimelist.net/character/${c.mal_id}` };
       });
     }
   };

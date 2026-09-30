@@ -1,4 +1,4 @@
-![MALGacha first look](https://files.catbox.moe/hik7pl.png)
+![MALGacha first look](https://files.catbox.moe/m6mrb2.png)
 
 # MALGacha
 
@@ -33,6 +33,7 @@ Restart the dev server, enter a public MAL profile URL, and prepare a pool. The 
 - Tenrai's public API requires no extra key. MAL_CLIENT_ID is sent only to MAL. Existing cast caches and character pools remain compatible because Tenrai uses MAL character IDs. Public limits are 120 requests/minute, 4/second, and 40,000/day per IP; this worker keeps conservative 1.1-second pacing. Tenrai is in beta, so catalogue freshness and availability can vary.
 - Deduplicates by MAL character ID as results arrive, retaining all title associations.
 - Allows rolls once the selected count (5–10) is available. Every unique character has equal odds and appears at most once per draw. Repeats between draws are allowed.
+- Optional popularity filtering uses an editable minimum favorite count (inclusive, default 500). Filtered draws return up to the selected count, never fill with ineligible characters, and require at least one match. Counts are import snapshots; missing counts are excluded. Re-import older profiles to collect favorite counts; legacy cast caches are refreshed automatically.
 - Labels early rolls, import failures, and demo data explicitly.
 - Saves jobs and character pools to `.data/jobs/`; the browser remembers its last import ID.
 - Cancel an import to stop active requests and keep the collected pool. Cancelled imports stay stopped after a server restart; use Resume import to continue unfinished titles.

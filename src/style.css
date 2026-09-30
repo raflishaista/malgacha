@@ -110,6 +110,10 @@ summary:hover { color: var(--accent); }
 footer { display: flex; justify-content: space-between; gap: 16px; border-top: 1px solid var(--line); padding: 16px 0 24px; font: 10px/1.6 var(--mono); color: var(--muted); }
 footer p { margin: 0; }
 section { scroll-margin-top: 20px; }
+.popularity-controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 20px; font-size: 13px; }
+.popularity-controls .checkbox { flex-basis: 100%; margin: 0; }
+.popularity-controls input[type="number"] { width: 110px; margin: 0; }
+.favorite-count { color: var(--muted); font-size: 12px; margin: 8px 0; }
 @media (max-width: 900px) {
   .shell { width: calc(100% - 40px); }
   .site-header { gap: 24px; flex-wrap: wrap; padding: 18px 0 14px; }

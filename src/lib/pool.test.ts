@@ -1,8 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { mergeCast, sample } from './pool';
+import { mergeCast, sample, popularityPool } from './pool';
 import type { PoolCharacter, Title } from './types';
 
 describe('character pool', () => {
+  it('filters inclusively, excludes unknown counts and returns smaller unique rolls', () => {
+    const base = { name: 'Character', image: null, url: '' };
+    const pool = [499, 500, 20001, null, undefined].map((favorites, id) => ({ ...base, id, favorites }));
+    expect(popularityPool(pool, 500).map((c) => c.id)).toEqual([1, 2]);
+    expect(sample(popularityPool(pool, 20000), 10, Math.random, true)).toEqual([pool[2]]);
+    expect(() => sample(popularityPool(pool, 30000), 5, Math.random, true)).toThrow('No characters match');
+    expect(popularityPool(pool, null)).toHaveLength(5);
+    for (const invalid of [-1, 0.5, '500', Infinity]) expect(() => popularityPool(pool, invalid)).toThrow();
+  });
   it('merges a character across anime and manga while preserving both sources', () => {
     const pool: Record<string, PoolCharacter> = {};
     const anime: Title = { id: 1, kind: 'anime', name: 'Anime', status: 'completed' };

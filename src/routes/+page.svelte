@@ -8,6 +8,10 @@
   let includePlanned = $state(true);
   let count = $state(5);
   let job = $state<JobView | null>(null);
+  let popularity = $state(false);
+  let minFavorites = $state<number | undefined>(500);
+  const validThreshold = $derived(Number.isSafeInteger(minFavorites) && minFavorites! >= 0);
+  const eligible = $derived(job ? popularity ? (job.favoriteCounts ?? []).filter((n) => validThreshold && n >= minFavorites!).length : job.uniqueCharacters : 0);
   let characters = $state<PoolCharacter[]>([]);
   let busy = $state(false);
   let rolling = $state(false);
@@ -71,10 +75,10 @@
     rolling = true; error = '';
     const current = generation;
     try {
-      const result = await api(`/api/imports/${job.id}/roll`, { count });
+      const result = await api(`/api/imports/${job.id}/roll`, { count, minFavorites: popularity ? minFavorites : null });
       if (current !== generation) return;
       characters = result.characters; rollNumber++;
-      rollNote = `${result.partial ? 'Early roll' : 'Full-pool roll'} · sampled from ${result.poolSize.toLocaleString()} unique characters`;
+      rollNote = `${result.partial ? 'Early roll' : 'Full-pool roll'} · sampled from ${result.poolSize.toLocaleString()} unique characters${popularity ? ` with at least ${minFavorites} favorites` : ''}${result.characters.length < count ? ` · only ${result.characters.length} qualify` : ''}`;
     } catch (cause) { error = cause instanceof Error ? cause.message : 'Could not roll.'; }
     finally { rolling = false; }
   }
@@ -145,11 +149,21 @@
         {:else}
           <p class="empty-pool">No characters collected yet. Import a profile or load the demo to begin.</p>
         {/if}
+        <div class="popularity-controls">
+          <label class="checkbox"><input type="checkbox" bind:checked={popularity} disabled={rolling} /><span>Popularity filter</span></label>
+          <label for="min-favorites">Roll characters with at least</label>
+          <input id="min-favorites" type="number" min="0" step="1" bind:value={minFavorites} disabled={!popularity || rolling} />
+          <span>favorites</span>
+        </div>
+        {#if popularity}
+          <p class="roll-help" aria-live="polite">{validThreshold ? eligible + ' characters qualify. Draws return up to ' + count + ' without duplicates.' : 'Enter a nonnegative whole number.'}</p>
+          {#if job?.unknownFavorites}<p class="roll-help">{job.unknownFavorites} characters have no saved favorite count and are excluded. Import the profile again to refresh older data.</p>{/if}
+        {/if}
         <div class="roll-controls">
           <div><label for="count">Characters per draw</label><select id="count" bind:value={count}>{#each [5, 6, 7, 8, 9, 10] as size}<option value={size}>{size} characters</option>{/each}</select></div>
-          <button class="primary" onclick={roll} disabled={rolling || busy || !job || job.uniqueCharacters < count}>{rolling ? 'Drawing…' : 'Draw characters'}</button>
+          <button class="primary" onclick={roll} disabled={rolling || busy || !job || (popularity ? !validThreshold || eligible === 0 : job.uniqueCharacters < count)}>{rolling ? 'Drawing…' : 'Draw characters'}</button>
         </div>
-        <p class="roll-help">{job && job.uniqueCharacters < count ? 'Available once ' + count + ' unique characters are ready.' : working ? 'Early draws use only the characters collected so far.' : ''}</p>
+        <p class="roll-help">{!popularity && job && job.uniqueCharacters < count ? 'Available once ' + count + ' unique characters are ready.' : working ? 'Early draws use only the characters collected so far.' : ''}</p>
       </section>
     </div>
     {#if error}<div class="error" role="alert">{error}</div>{/if}
@@ -164,6 +178,7 @@
                 <span class="portrait-fallback" aria-hidden="true"><span>{character.name.split(' ').map((word) => word[0]).slice(0, 2).join('')}</span><small>No portrait</small></span>
                 {#if character.image}<img src={character.image} alt={character.name} loading="lazy" onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }} />{/if}
               </a>
+              <p class="favorite-count">{typeof character.favorites === 'number' ? character.favorites.toLocaleString() + ' favorites' : 'Favorites unknown'}</p>
               <h3><a href={character.url} target="_blank" rel="noreferrer">{character.name}</a></h3>
               <ul class="title-list">{#each character.titles.slice(0, 2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul>
               {#if character.titles.length > 2}<details class="more-titles"><summary>{character.titles.length - 2} more titles</summary><ul class="title-list">{#each character.titles.slice(2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul></details>{/if}

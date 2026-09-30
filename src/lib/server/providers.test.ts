@@ -41,7 +41,7 @@ it('fetches manga casts from Tenrai and preserves MAL character IDs for deduplic
   vi.stubGlobal('fetch', fetcher);
   const cast = await createProviders(() => 'secret').cast({ id: 1, kind: 'manga', name: 'Monster', status: 'completed' });
   expect(fetcher.mock.calls[0]).toEqual(['https://api.tenrai.org/v1/manga/1/characters', expect.objectContaining({ headers: {} })]);
-  expect(cast[0]).toEqual({ id: 720, name: 'Liebert, Anna', image: 'https://cdn.myanimelist.net/images/characters/11/286916.jpg', url: 'https://myanimelist.net/character/720' });
+  expect(cast[0]).toEqual({ id: 720, name: 'Liebert, Anna', favorites: null, image: 'https://cdn.myanimelist.net/images/characters/11/286916.jpg', url: 'https://myanimelist.net/character/720' });
 });
 
 it('does not treat a malformed cast response as a successfully empty cast', async () => {

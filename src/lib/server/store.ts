@@ -40,10 +40,10 @@ export class Store {
     return jobs.filter((job): job is Job => job !== null);
   }
   async cast(key: string): Promise<Character[] | null> {
-    const entry = await this.read<{ fetchedAt: number; data: Character[] }>('casts', key.replace(':', '-'));
-    return entry && Date.now() - entry.fetchedAt < 24 * 60 * 60 * 1000 ? entry.data : null;
+    const entry = await this.read<{ version?: number; fetchedAt: number; data: Character[] }>('casts', key.replace(':', '-'));
+    return entry && entry.version === 2 && Date.now() - entry.fetchedAt < 24 * 60 * 60 * 1000 ? entry.data : null;
   }
   saveCast(key: string, data: Character[]) {
-    return this.write('casts', key.replace(':', '-'), { fetchedAt: Date.now(), data });
+    return this.write('casts', key.replace(':', '-'), { version: 2, fetchedAt: Date.now(), data });
   }
 }
