@@ -1,0 +1,28 @@
+export type MediaKind = 'anime' | 'manga';
+export type Title = { id: number; kind: MediaKind; name: string; status: string };
+export type Character = { id: number; name: string; image: string | null; url: string };
+export type PoolCharacter = Character & { titles: Title[] };
+export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'partial' | 'error';
+export type Job = {
+  id: string;
+  username: string;
+  demo: boolean;
+  includePlanned: boolean;
+  state: ImportState;
+  createdAt: string;
+  updatedAt: string;
+  titles: Title[];
+  listed: boolean;
+  done: string[];
+  failures: Record<string, string>;
+  pool: Record<string, PoolCharacter>;
+  message: string;
+};
+export type JobView = Omit<Job, 'titles' | 'done' | 'pool' | 'failures' | 'listed'> & {
+  total: number;
+  processed: number;
+  failed: number;
+  uniqueCharacters: number;
+  failures: { title: string; message: string }[];
+};
+export const titleKey = (title: Pick<Title, 'id' | 'kind'>) => `${title.kind}:${title.id}`;
