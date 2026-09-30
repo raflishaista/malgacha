@@ -2,7 +2,7 @@
 
 https://malgacha-production.up.railway.app/
 
-![MALGacha first look](https://files.catbox.moe/m6mrb2.png)
+![MALGacha first look](https://i.imgur.com/yL6nofo.png)
 
 # MALGacha
 
