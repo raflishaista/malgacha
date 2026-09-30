@@ -57,6 +57,15 @@
     catch (cause) { error = cause instanceof Error ? cause.message : 'Retry failed.'; }
     finally { busy = false; }
   }
+  async function cancel() {
+    if (!job) return;
+    busy = true; error = '';
+    const id = job.id;
+    ++generation;
+    try { job = await api(`/api/imports/${id}`, { action: 'cancel' }); }
+    catch (cause) { error = cause instanceof Error ? cause.message : 'Cancel failed.'; }
+    finally { busy = false; }
+  }
   async function roll() {
     if (!job) return;
     rolling = true; error = '';
@@ -96,7 +105,7 @@
   </header>
   <main id="tool">
     <div class="intro">
-      <h1>Animanga Character Roller</h1>
+      <h1>MAL Character Lottery</h1>
       <p>Import your MyAnimeList anime and manga lists, then draw 5–10 characters from a pool</p>
     </div>
     <div class="workspace">
@@ -126,11 +135,12 @@
           <div><dt>Failed titles</dt><dd>{job ? job.failed : '—'}</dd></div>
         </dl>
         {#if job}
-          <div class="progress-heading"><span>{job.state === 'complete' ? 'Import complete' : job.state === 'partial' ? 'Partial import' : job.state === 'error' ? 'Import needs attention' : job.state === 'queued' ? 'Import queued' : 'Importing'}</span><span>{progress}%</span></div>
+          <div class="progress-heading"><span>{job.state === 'cancelled' ? 'Import cancelled' : job.state === 'complete' ? 'Import complete' : job.state === 'partial' ? 'Partial import' : job.state === 'error' ? 'Import needs attention' : job.state === 'queued' ? 'Import queued' : 'Importing'}</span><span>{progress}%</span></div>
           <progress max="100" value={progress} aria-label="Import progress"></progress>
           <p class="progress-message" aria-live="polite">{job.message}</p>
           {#if job.demo}<p class="demo-note">Bundled sample. No API requests; portraits are placeholders.</p>{/if}
-          {#if job.state === 'partial' || job.state === 'error'}<button class="retry-button" disabled={busy} onclick={retry}>Retry unfinished titles</button>{/if}
+          {#if working}<button class="retry-button" disabled={busy} onclick={cancel}>Cancel import</button>{/if}
+          {#if job.state === 'partial' || job.state === 'error' || job.state === 'cancelled'}<button class="retry-button" disabled={busy} onclick={retry}>{job.state === 'cancelled' ? 'Resume import' : 'Retry unfinished titles'}</button>{/if}
           {#if job.failed}<details class="failures"><summary>Show {job.failed} failed {job.failed === 1 ? 'title' : 'titles'}</summary><ul>{#each job.failures as failure}<li><b>{failure.title}</b>: {failure.message}</li>{/each}</ul></details>{/if}
         {:else}
           <p class="empty-pool">No characters collected yet. Import a profile or load the demo to begin.</p>

@@ -2,7 +2,7 @@ export type MediaKind = 'anime' | 'manga';
 export type Title = { id: number; kind: MediaKind; name: string; status: string };
 export type Character = { id: number; name: string; image: string | null; url: string };
 export type PoolCharacter = Character & { titles: Title[] };
-export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'partial' | 'error';
+export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'partial' | 'error' | 'cancelled';
 export type Job = {
   id: string;
   username: string;

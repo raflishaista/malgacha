@@ -18,6 +18,7 @@ export function view(job: Job): JobView {
 export class Engine {
   private queue: string[] = [];
   private running = false;
+  private controllers = new Map<string, AbortController>();
   private initialized?: Promise<void>;
   private mutations: Promise<unknown> = Promise.resolve();
   constructor(readonly store: Store, private providers: Providers, private demoDelay = 1500) {}
@@ -65,6 +66,21 @@ export class Engine {
       return job;
     });
   }
+  async cancel(id: string) {
+    await this.init();
+    return this.serialize(async () => {
+      const job = await this.store.getJob(id);
+      if (!job) throw new Error('Import not found.');
+      if (!activeStates.has(job.state)) return job;
+      this.controllers.get(id)?.abort();
+      this.queue = this.queue.filter((queued) => queued !== id);
+      job.state = 'cancelled';
+      job.message = 'Import cancelled. Collected characters are saved; you can roll or resume the import.';
+      job.updatedAt = new Date().toISOString();
+      await this.store.saveJob(job);
+      return job;
+    });
+  }
   private kick() {
     if (this.running) return;
     this.running = true;
@@ -73,48 +89,59 @@ export class Engine {
       if (this.queue.length) this.kick();
     });
   }
-  private async persist(job: Job) {
-    job.updatedAt = new Date().toISOString();
-    await this.store.saveJob(job);
+  private async persist(job: Job, signal: AbortSignal) {
+    await this.serialize(async () => {
+      signal.throwIfAborted();
+      job.updatedAt = new Date().toISOString();
+      await this.store.saveJob(job);
+    });
   }
   private async drain() {
     while (this.queue.length) {
       const id = this.queue.shift()!;
+      const controller = new AbortController();
+      this.controllers.set(id, controller);
+      const signal = controller.signal;
       const job = await this.store.getJob(id);
-      if (!job) continue;
+      if (!job || !activeStates.has(job.state)) { this.controllers.delete(id); continue; }
       try {
         if (!job.listed) {
           job.state = 'listing'; job.message = 'Reading anime and manga lists…';
-          await this.persist(job);
-          job.titles = job.demo ? demoTitles : await this.providers.lists(job.username, job.includePlanned);
+          await this.persist(job, signal);
+          job.titles = job.demo ? demoTitles : await this.providers.lists(job.username, job.includePlanned, signal);
           job.listed = true;
         }
         job.state = 'fetching';
-        await this.persist(job);
+        await this.persist(job, signal);
         for (const title of job.titles) {
+          signal.throwIfAborted();
           const key = titleKey(title);
           if (job.done.includes(key)) continue;
           job.message = `Fetching characters from ${title.name}…`;
-          await this.persist(job);
+          await this.persist(job, signal);
           try {
             let cast;
-            if (job.demo) { await sleep(this.demoDelay); cast = demoCast(title); }
+            if (job.demo) { await sleep(this.demoDelay, undefined, { signal }); cast = demoCast(title); }
             else {
               cast = await this.store.cast(key);
-              if (cast === null) { cast = await this.providers.cast(title); await this.store.saveCast(key, cast); }
+              if (cast === null) { cast = await this.providers.cast(title, signal); await this.store.saveCast(key, cast); }
             }
+            signal.throwIfAborted();
             mergeCast(job.pool, title, cast);
             job.done.push(key);
             delete job.failures[key];
-          } catch (error) { job.failures[key] = error instanceof Error ? error.message : 'Could not fetch this cast.'; }
-          await this.persist(job);
+          } catch (error) { signal.throwIfAborted(); job.failures[key] = error instanceof Error ? error.message : 'Could not fetch this cast.'; }
+          await this.persist(job, signal);
         }
         job.state = Object.keys(job.failures).length ? 'partial' : 'complete';
         job.message = job.state === 'partial' ? 'Some titles could not be fetched. You can roll now or retry them.' : job.titles.length ? 'Your character pool is ready.' : 'No entries matched this import.';
-        await this.persist(job);
+        await this.persist(job, signal);
       } catch (error) {
+        if (signal.aborted) continue;
         job.state = 'error'; job.message = error instanceof Error ? error.message : 'Import failed.';
-        await this.persist(job);
+        await this.persist(job, signal).catch((error) => { if (!signal.aborted) throw error; });
+      } finally {
+        this.controllers.delete(id);
       }
     }
   }

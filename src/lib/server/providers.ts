@@ -2,8 +2,8 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { Character, Title } from '../types';
 
 export interface Providers {
-  lists(username: string, includePlanned: boolean): Promise<Title[]>;
-  cast(title: Title): Promise<Character[]>;
+  lists(username: string, includePlanned: boolean, signal?: AbortSignal): Promise<Title[]>;
+  cast(title: Title, signal?: AbortSignal): Promise<Character[]>;
 }
 
 export function parseUsername(input: string): string {
@@ -23,25 +23,26 @@ export function parseUsername(input: string): string {
 export function createProviders(clientId: () => string | undefined): Providers {
   let nextTenrai = 0;
   let nextMal = 0;
-  async function request(url: string, provider: 'mal' | 'tenrai'): Promise<any> {
+  async function request(url: string, provider: 'mal' | 'tenrai', signal?: AbortSignal): Promise<any> {
     for (let attempt = 0; attempt < 4; attempt++) {
       const now = Date.now();
       const slot = Math.max(now, provider === 'tenrai' ? nextTenrai : nextMal);
       if (provider === 'tenrai') nextTenrai = slot + 1100;
       else nextMal = slot + 1100;
-      await sleep(Math.max(0, slot - now));
+      await sleep(Math.max(0, slot - now), undefined, { signal });
       let response: Response;
       try {
         response = await fetch(url, {
           headers: provider === 'mal' ? { 'X-MAL-CLIENT-ID': clientId() || '' } : {},
-          signal: AbortSignal.timeout(20_000)
+          signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(20_000)]) : AbortSignal.timeout(20_000)
         });
       } catch (error) {
+        signal?.throwIfAborted();
         if (attempt === 3) {
           const timedOut = error instanceof Error && ['TimeoutError', 'AbortError'].includes(error.name);
           throw new Error(`${provider === 'mal' ? 'MAL' : 'Tenrai'} ${timedOut ? 'request timed out after 20 seconds' : 'connection failed'} after 4 attempts. No HTTP response received. Retry later.`);
         }
-        await sleep(2000 * 2 ** attempt);
+        await sleep(2000 * 2 ** attempt, undefined, { signal });
         continue;
       }
       const body = await response.json().catch(() => null);
@@ -74,7 +75,7 @@ export function createProviders(clientId: () => string | undefined): Providers {
     throw new Error('Provider request failed.');
   }
   return {
-    async lists(username, includePlanned) {
+    async lists(username, includePlanned, signal) {
       if (!clientId()) throw new Error('Add MAL_CLIENT_ID to .env and restart the server, or try the demo.');
       const titles: Title[] = [];
       for (const kind of ['anime', 'manga'] as const) {
@@ -82,7 +83,7 @@ export function createProviders(clientId: () => string | undefined): Providers {
         for (;;) {
           const url = new URL(`https://api.myanimelist.net/v2/users/${encodeURIComponent(username)}/${kind}list`);
           url.search = new URLSearchParams({ limit: '1000', offset: String(offset), fields: 'list_status', nsfw: 'true' }).toString();
-          const page = await request(url.toString(), 'mal');
+          const page = await request(url.toString(), 'mal', signal);
           for (const item of page.data) {
             if (!Number.isInteger(item.node?.id) || typeof item.node?.title !== 'string' || typeof item.list_status?.status !== 'string') throw new Error('MAL returned an incomplete list entry.');
             const status = item.list_status.status;
@@ -95,8 +96,8 @@ export function createProviders(clientId: () => string | undefined): Providers {
       }
       return [...new Map(titles.map((title) => [`${title.kind}:${title.id}`, title])).values()];
     },
-    async cast(title) {
-      const page = await request(`https://api.tenrai.org/v1/${title.kind}/${title.id}/characters`, 'tenrai');
+    async cast(title, signal) {
+      const page = await request(`https://api.tenrai.org/v1/${title.kind}/${title.id}/characters`, 'tenrai', signal);
       return page.data.map((item: any): Character => {
         const c = item.character;
         if (!Number.isInteger(c?.mal_id) || typeof c?.name !== 'string') throw new Error('Tenrai returned an incomplete character.');

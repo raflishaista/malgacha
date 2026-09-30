@@ -35,6 +35,7 @@ Restart the dev server, enter a public MAL profile URL, and prepare a pool. The 
 - Allows rolls once the selected count (5–10) is available. Every unique character has equal odds and appears at most once per draw. Repeats between draws are allowed.
 - Labels early rolls, import failures, and demo data explicitly.
 - Saves jobs and character pools to `.data/jobs/`; the browser remembers its last import ID.
+- Cancel an import to stop active requests and keep the collected pool. Cancelled imports stay stopped after a server restart; use Resume import to continue unfinished titles.
 - Saves successful casts, including empty casts, to `.data/casts/` with a 24-hour expiry for subsequent imports. Existing saved pools remain snapshots until you prepare a new import.
 - Resumes queued/interrupted imports on server startup. Closing the browser does not stop the worker; stopping the Node process pauses it until restart.
 - Retries transient upstream failures, respects Retry-After, and paces Tenrai calls at least 1.1 seconds apart across the worker. Failed casts remain retryable without losing successful work.

@@ -20,7 +20,7 @@ async function setup() { const root = await mkdtemp(join(tmpdir(), 'malgacha-tes
 async function finished(store: Store, id: string) {
   for (let i = 0; i < 300; i++) {
     const job = (await store.getJob(id))!;
-    if (['complete', 'partial', 'error'].includes(job.state)) return job;
+    if (['complete', 'partial', 'error', 'cancelled'].includes(job.state)) return job;
     await sleep(10);
   }
   throw new Error('Import did not finish.');
@@ -30,6 +30,53 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('aborts an active cast, preserves saved characters, and resumes unfinished titles', async () => {
+    const store = await setup();
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => { started = resolve; });
+    let aborted = false;
+    const providers = { lists: vi.fn(async () => [title, second]), cast: vi.fn(async (t: Title, signal?: AbortSignal) => {
+      if (t.kind === 'manga' && !aborted) {
+        started();
+        await new Promise<void>((_, reject) => signal!.addEventListener('abort', () => { aborted = true; reject(signal!.reason); }, { once: true }));
+      }
+      return [character];
+    }) };
+    const engine = new Engine(store, providers, 0);
+    const job = await engine.create('fhgeh', true, false);
+    await pending;
+    const cancelled = await engine.cancel(job.id);
+    expect(aborted).toBe(true);
+    expect(cancelled.state).toBe('cancelled');
+    expect(cancelled.done).toEqual(['anime:1']);
+    expect(cancelled.pool[42]).toBeDefined();
+    await engine.retry(job.id);
+    const done = await finished(store, job.id);
+    expect(done.state).toBe('complete');
+    expect(done.done).toEqual(['anime:1', 'manga:1']);
+    expect(providers.cast).toHaveBeenCalledTimes(3);
+  });
+
+  it('cancels queued and listing jobs without restarting them on server startup', async () => {
+    const store = await setup();
+    let started!: () => void;
+    const pending = new Promise<void>((resolve) => { started = resolve; });
+    const providers = { lists: vi.fn(async (_: string, __: boolean, signal?: AbortSignal): Promise<Title[]> => {
+      started();
+      return new Promise((_, reject) => signal!.addEventListener('abort', () => reject(signal!.reason), { once: true }));
+    }), cast: vi.fn(async () => [character]) };
+    const engine = new Engine(store, providers, 0);
+    const first = await engine.create('fhgeh', true, false);
+    await pending;
+    const queued = await engine.create('another', true, false);
+    expect((await engine.cancel(queued.id)).state).toBe('cancelled');
+    expect((await engine.cancel(first.id)).state).toBe('cancelled');
+    await new Engine(store, providers, 0).init();
+    await sleep(30);
+    expect((await store.getJob(first.id))!.state).toBe('cancelled');
+    expect(providers.lists).toHaveBeenCalledTimes(1);
+    expect(providers.cast).not.toHaveBeenCalled();
+  });
   it('deduplicates across sources and reuses the cast cache for another profile', async () => {
     const store = await setup();
     const providers = { lists: vi.fn(async () => [title, second]), cast: vi.fn(async () => [character]) };
@@ -72,7 +119,7 @@ describe('durable imports', () => {
     const done = await finished(store, job.id);
     expect(done.done).toEqual(['anime:1', 'manga:1']);
     expect(providers.lists).not.toHaveBeenCalled();
-    expect(providers.cast).toHaveBeenCalledExactlyOnceWith(second);
+    expect(providers.cast).toHaveBeenCalledExactlyOnceWith(second, expect.any(AbortSignal));
   });
   it('stores the demo separately from real API cast caches', async () => {
     const store = await setup();
