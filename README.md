@@ -4,6 +4,8 @@ https://malgacha-production.up.railway.app/
 
 ![MALGacha first look](https://i.imgur.com/yL6nofo.png)
 
+![MALGacha second look](https://files.catbox.moe/l1uslg.png)
+
 # MALGacha
 
 Roll for your "literally who" squad from animanga.
