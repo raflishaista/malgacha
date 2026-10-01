@@ -36,16 +36,16 @@ export class Engine {
     this.mutations = next.catch(() => {});
     return next;
   }
-  async create(input: string, includePlanned: boolean, demo: boolean) {
+  async create(input: string, includePlanned: boolean, demo: boolean, scope = 'lottery') {
     await this.init();
     return this.serialize(async () => {
       const username = demo ? 'demo' : parseUsername(input);
       const jobs = await this.store.jobs();
-      const existing = jobs.find((job) => job.username.toLowerCase() === username.toLowerCase() && job.demo === demo && job.includePlanned === includePlanned && activeStates.has(job.state));
+      const existing = jobs.find((job) => job.username.toLowerCase() === username.toLowerCase() && (job.scope ?? 'lottery') === scope && job.demo === demo && job.includePlanned === includePlanned && activeStates.has(job.state));
       if (existing) return existing;
       if (jobs.filter((job) => activeStates.has(job.state)).length >= 10) throw new Error('The import queue is full. Please try again later.');
       const now = new Date().toISOString();
-      const job: Job = { id: randomUUID(), username, demo, includePlanned, state: 'queued', createdAt: now, updatedAt: now, titles: [], listed: false, done: [], failures: {}, pool: {}, message: 'Waiting for the importer.' };
+      const job: Job = { id: randomUUID(), username, scope, demo, includePlanned, state: 'queued', createdAt: now, updatedAt: now, titles: [], listed: false, done: [], failures: {}, pool: {}, message: 'Waiting for the importer.' };
       await this.store.saveJob(job);
       this.queue.push(job.id);
       this.kick();

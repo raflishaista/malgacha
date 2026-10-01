@@ -6,6 +6,7 @@ export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'part
 export type Job = {
   id: string;
   username: string;
+  scope?: string;
   demo: boolean;
   includePlanned: boolean;
   state: ImportState;

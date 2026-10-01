@@ -21,7 +21,7 @@ async function finished(store: Store, id: string) {
   for (let i = 0; i < 300; i++) {
     const job = (await store.getJob(id))!;
     if (['complete', 'partial', 'error', 'cancelled'].includes(job.state)) return job;
-    await sleep(10);
+    await sleep(50);
   }
   throw new Error('Import did not finish.');
 }
@@ -30,6 +30,17 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('keeps the same profile independent across comparison panels', async () => {
+    const store = await setup();
+    const providers = { lists: vi.fn(async () => [title]), cast: vi.fn(async () => [character]) };
+    const engine = new Engine(store, providers, 0);
+    const left = await engine.create('fhgeh', true, false, 'left');
+    const right = await engine.create('fhgeh', true, false, 'right');
+    expect(left.id).not.toBe(right.id);
+    await engine.cancel(right.id);
+    expect((await finished(store, left.id)).state).toBe('complete');
+    expect((await store.getJob(right.id))!.state).toBe('cancelled');
+  });
   it('aborts an active cast, preserves saved characters, and resumes unfinished titles', async () => {
     const store = await setup();
     let started!: () => void;
