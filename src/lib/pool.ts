@@ -6,6 +6,19 @@ export function popularityPool<T extends Character>(items: T[], minFavorites: un
   return items.filter((c) => typeof c.favorites === 'number' && c.favorites >= minFavorites);
 }
 
+/** Small animation-only sample, favoring characters outside the actual draw. */
+export function previewCast(pool: PoolCharacter[], winners: PoolCharacter[], random = Math.random): PoolCharacter[] {
+  const ids = new Set(winners.map((c) => c.id));
+  const candidates = pool.filter((c) => !ids.has(c.id));
+  const count = Math.min(20, candidates.length);
+  for (let i = 0; i < count; i++) {
+    const j = i + Math.floor(random() * (candidates.length - i));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  // Previews don't need title associations; keep the response small.
+  return candidates.slice(0, count).map((c) => ({ ...c, titles: [] }));
+}
+
 export function mergeCast(pool: Record<string, PoolCharacter>, title: Title, cast: Character[]) {
   for (const character of cast) {
     const existing = pool[character.id];

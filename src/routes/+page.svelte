@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import type { JobView, PoolCharacter } from '$lib/types';
+  import { rarityFor } from '$lib/rarity';
   import '../style.css';
 
   let { data } = $props();
@@ -15,6 +16,46 @@
   let characters = $state<PoolCharacter[]>([]);
   let busy = $state(false);
   let rolling = $state(false);
+  let shuffling = $state(false);
+  let settledSlots = $state(0);
+  let animationFinal: PoolCharacter[] | null = null;
+  let animationTimer: ReturnType<typeof setTimeout> | undefined;
+  let releaseAnimation: (() => void) | undefined;
+  function stopAnimation() {
+    clearTimeout(animationTimer);
+    releaseAnimation?.();
+    releaseAnimation = undefined;
+    if (animationFinal) characters = animationFinal;
+    animationFinal = null;
+    shuffling = false;
+  }
+  async function revealRoll(final: PoolCharacter[], current: number, previews: PoolCharacter[] = []) {
+    const reel = previews.length > 1 ? previews : [...previews, ...final];
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches || reel.length < 2) {
+      characters = final;
+      return;
+    }
+    // Reuse the returned portraits; animation never makes extra API requests or changes the draw.
+    for (const character of [...reel, ...final]) {
+      if (character.image) { const image = new Image(); image.src = character.image; }
+    }
+    shuffling = true;
+    animationFinal = final;
+    settledSlots = 0;
+    rollNote = 'Rolling…';
+    const started = performance.now();
+    let tick = 0;
+    while (current === generation) {
+      const elapsed = performance.now() - started;
+      settledSlots = Math.min(final.length, Math.max(0, Math.floor((elapsed - 700) / 140) + 1));
+      if (settledSlots === final.length) break;
+      const offset = tick++ % reel.length;
+      characters = final.map((character, index) => index < settledSlots ? character : reel[(index + offset) % reel.length]);
+      await new Promise<void>((resolve) => { releaseAnimation = resolve; animationTimer = setTimeout(resolve, 100); });
+    }
+    if (current === generation) characters = final;
+    stopAnimation();
+  }
   let error = $state('');
   let rollNote = $state('');
   let rollNumber = $state(0);
@@ -27,12 +68,15 @@
     const response = await fetch(path, body === undefined ? {} : {
       method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body)
     });
-    const result = await response.json();
+    const result = await response.json().catch(() => {
+      throw new Error(`The server returned an unexpected response (HTTP ${response.status}). Please try again or check the deployment logs.`);
+    });
     if (!response.ok) throw new Error(result.error || 'Something went wrong. Please try again.');
     return result;
   }
   function remember(id: string) { try { localStorage.setItem('character-roll-import', id); } catch { /* Storage may be disabled. */ } }
   async function start(demo = false) {
+    stopAnimation();
     busy = true; error = '';
     const current = ++generation;
     try {
@@ -66,18 +110,21 @@
     busy = true; error = '';
     const id = job.id;
     ++generation;
+    stopAnimation();
     try { job = await api(`/api/imports/${id}`, { action: 'cancel' }); }
     catch (cause) { error = cause instanceof Error ? cause.message : 'Cancel failed.'; }
     finally { busy = false; }
   }
   async function roll() {
-    if (!job) return;
+    if (!job || rolling) return;
     rolling = true; error = '';
     const current = generation;
     try {
       const result = await api(`/api/imports/${job.id}/roll`, { count, minFavorites: popularity ? minFavorites : null });
       if (current !== generation) return;
-      characters = result.characters; rollNumber++;
+      await revealRoll(result.characters, current, result.previews);
+      if (current !== generation) return;
+      rollNumber++;
       rollNote = `${result.partial ? 'Early roll' : 'Full-pool roll'} · sampled from ${result.poolSize.toLocaleString()} unique characters${popularity ? ` with at least ${minFavorites} favorites` : ''}${result.characters.length < count ? ` · only ${result.characters.length} qualify` : ''}`;
     } catch (cause) { error = cause instanceof Error ? cause.message : 'Could not roll.'; }
     finally { rolling = false; }
@@ -92,7 +139,7 @@
       }).catch(() => { if (!disposed && current === generation) error = 'Your previous import could not be restored. You can start a new import below.'; });
     } catch { /* App still works without local storage. */ }
     const timer = setInterval(() => void refresh(), 2000);
-    return () => { disposed = true; clearInterval(timer); };
+    return () => { disposed = true; ++generation; stopAnimation(); clearInterval(timer); };
   });
 </script>
 <svelte:head>
@@ -170,16 +217,17 @@
     <section class="results" id="results" aria-labelledby="results-heading">
       {#if characters.length}
         <p class="draw-note" aria-live="polite">{rollNote}{job?.demo ? ' · Demo' : ''}</p>
-        <ol class="character-grid">
-          {#each characters as character, index (character.id)}
-            <li class="character-entry">
+        <ol class="character-grid" aria-busy={shuffling}>
+          {#each characters as character, index (index)}
+            {@const rarity = rarityFor(character.favorites)}
+            <li class="character-entry" data-rarity={rarity} class:slot-rolling={shuffling && index >= settledSlots}>
               <div class="entry-meta"><span>{String(index + 1).padStart(2, '0')}</span><span>MAL {character.id}</span></div>
               <a class="portrait" href={character.url} target="_blank" rel="noreferrer" aria-label={'View ' + character.name + ' on MyAnimeList (opens in a new tab)'}>
                 <span class="portrait-fallback" aria-hidden="true"><span>{character.name.split(' ').map((word) => word[0]).slice(0, 2).join('')}</span><small>No portrait</small></span>
-                {#if character.image}<img src={character.image} alt={character.name} loading="lazy" onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }} />{/if}
+                {#key character.id}{#if character.image}<img src={character.image} alt={character.name} loading={shuffling ? 'eager' : 'lazy'} onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }} />{/if}{/key}
               </a>
               <p class="favorite-count">{typeof character.favorites === 'number' ? character.favorites.toLocaleString() + ' favorites' : 'Favorites unknown'}</p>
-              <h3><a href={character.url} target="_blank" rel="noreferrer">{character.name}</a></h3>
+              <h3><a href={character.url} target="_blank" rel="noreferrer">{character.name}</a>{#if rarity} <span class="rarity-label" aria-label={rarity + ' rarity'}>{rarity}</span>{/if}</h3>
               <ul class="title-list">{#each character.titles.slice(0, 2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul>
               {#if character.titles.length > 2}<details class="more-titles"><summary>{character.titles.length - 2} more titles</summary><ul class="title-list">{#each character.titles.slice(2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul></details>{/if}
             </li>

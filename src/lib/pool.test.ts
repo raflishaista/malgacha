@@ -1,8 +1,19 @@
 import { describe, expect, it } from 'vitest';
-import { mergeCast, sample, popularityPool } from './pool';
+import { mergeCast, sample, popularityPool, previewCast } from './pool';
 import type { PoolCharacter, Title } from './types';
 
 describe('character pool', () => {
+  it('caps previews, excludes winners, and uses only the eligible pool without modifying it', () => {
+    const pool = Array.from({ length: 50 }, (_, id) => ({ id, name: 'Person', image: null, url: '', titles: [], favorites: id * 100 }));
+    const eligible = popularityPool(pool, 1000);
+    const winners = eligible.slice(0, 5);
+    const previews = previewCast(eligible, winners, () => 0.5);
+    expect(previews).toHaveLength(20);
+    expect(new Set(previews.map((c) => c.id)).size).toBe(20);
+    expect(previews.every((c) => c.favorites! >= 1000 && !winners.some((w) => w.id === c.id))).toBe(true);
+    expect(pool.map((c) => c.id)).toEqual(Array.from({ length: 50 }, (_, i) => i));
+    expect(previewCast(winners, winners)).toEqual([]);
+  });
   it('filters inclusively, excludes unknown counts and returns smaller unique rolls', () => {
     const base = { name: 'Character', image: null, url: '' };
     const pool = [499, 500, 20001, null, undefined].map((favorites, id) => ({ ...base, id, favorites }));
