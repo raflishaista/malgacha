@@ -4,7 +4,7 @@ import { resolve, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { PoolCharacter } from '../types';
 import type { Power } from '../power';
-import { nameMatches, originMatches, parseTier } from './power-parser';
+import { nameMatches, originMatches, parseTier, searchName, fallbackQueries } from './power-parser';
 
 const root = resolve('.data/powers');
 const shared = globalThis as typeof globalThis & { powerQueue?: Promise<unknown>; powerPending?: Map<string, Promise<Power>>; powerNext?: number };
@@ -24,27 +24,32 @@ async function request(params: Record<string, string>) {
   if (body.error) throw new Error('Wiki API error');
   return body;
 }
-async function lookup(character: PoolCharacter): Promise<Power> {
-  const name = character.name.includes(',') ? character.name.split(',').reverse().join(' ').trim() : character.name;
-  const search = await request({ action: 'query', list: 'search', srnamespace: '0', srsearch: name, srlimit: '5' });
-  if (!Array.isArray(search.query?.search)) throw new Error('Invalid search response');
-  const candidates = search.query.search.filter((p: { title: string }) => nameMatches(character.name, p.title));
-  if (candidates.length > 3) return { tier: null, status: 'unmatched', checkedAt: new Date().toISOString() };
-  const matches: Power[] = [];
-  for (const page of candidates.slice(0, 3)) {
-    const parsed = await request({ action: 'parse', page: page.title, prop: 'wikitext' });
-    const wiki = parsed.parse?.wikitext?.['*'];
-    if (typeof wiki !== 'string') throw new Error('Invalid page response');
-    if (!originMatches(character, wiki)) continue;
-    const stats = parseTier(wiki);
-    matches.push({ ...stats, status: stats.tier ? 'ranked' : 'unmatched', page: page.title,
-      url: 'https://vsbattles.fandom.com/wiki/' + encodeURIComponent(page.title.replaceAll(' ', '_')), checkedAt: new Date().toISOString() });
+export async function lookup(character: PoolCharacter, call = request): Promise<Power> {
+  const seen = new Set<string>();
+  let parsedCount = 0;
+  for (const query of [searchName(character.name), ...fallbackQueries(character)]) {
+    const search = await call({ action: 'query', list: 'search', srnamespace: '0', srsearch: query, srlimit: '8' });
+    if (!Array.isArray(search.query?.search)) throw new Error('Invalid search response');
+    for (const page of search.query.search) {
+      if (typeof page.title !== 'string' || seen.has(page.title) || !nameMatches(character.name, page.title)) continue;
+      seen.add(page.title);
+      if (++parsedCount > 5) break;
+      const parsed = await call({ action: 'parse', page: page.title, prop: 'wikitext', redirects: '1' });
+      const wiki = parsed.parse?.wikitext?.['*'];
+      const title = parsed.parse?.title ?? page.title;
+      if (typeof wiki !== 'string') throw new Error('Invalid page response');
+      if (!nameMatches(character.name, title) || !originMatches(character, wiki)) continue;
+      const stats = parseTier(wiki);
+      if (!stats.tier || /\{\{\s*(?:disambiguation|disambig)\b/i.test(wiki)) continue;
+      return { ...stats, status: 'ranked', page: title,
+        url: 'https://vsbattles.fandom.com/wiki/' + encodeURIComponent(title.replaceAll(' ', '_')), checkedAt: new Date().toISOString() };
+    }
+    if (parsedCount >= 5) break;
   }
-  // Multiple continuities are ambiguous; do not silently choose another version.
-  return matches.length === 1 ? matches[0] : { tier: null, status: 'unmatched', checkedAt: new Date().toISOString() };
+  return { tier: null, status: 'unmatched', checkedAt: new Date().toISOString() };
 }
 export async function getPower(character: PoolCharacter): Promise<Power> {
-  const key = String(character.id);
+  const key = 'v2-' + String(character.id);
   const file = join(root, key + '.json');
   try {
     const cached = JSON.parse(await readFile(file, 'utf8')) as Power;
