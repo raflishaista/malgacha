@@ -82,12 +82,12 @@ export function createProviders(clientId: () => string | undefined): Providers {
         let offset = 0;
         for (;;) {
           const url = new URL(`https://api.myanimelist.net/v2/users/${encodeURIComponent(username)}/${kind}list`);
-          url.search = new URLSearchParams({ limit: '1000', offset: String(offset), fields: 'list_status', nsfw: 'true' }).toString();
+          url.search = new URLSearchParams({ limit: '1000', offset: String(offset), fields: 'list_status,mean', nsfw: 'true' }).toString();
           const page = await request(url.toString(), 'mal', signal);
           for (const item of page.data) {
             if (!Number.isInteger(item.node?.id) || typeof item.node?.title !== 'string' || typeof item.list_status?.status !== 'string') throw new Error('MAL returned an incomplete list entry.');
             const status = item.list_status.status;
-            if (includePlanned || !['plan_to_watch', 'plan_to_read'].includes(status)) titles.push({ id: item.node.id, kind, name: item.node.title, status });
+            if (includePlanned || !['plan_to_watch', 'plan_to_read'].includes(status)) titles.push({ id: item.node.id, kind, name: item.node.title, score: typeof item.node.mean === 'number' && item.node.mean > 0 && item.node.mean <= 10 ? item.node.mean : null, status });
           }
           if (!page.paging?.next) break;
           if (page.data.length === 0) throw new Error('MAL pagination stopped unexpectedly. Retry the import.');

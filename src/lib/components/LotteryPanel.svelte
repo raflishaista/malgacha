@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
   import type { JobView, PoolCharacter } from '$lib/types';
+  import { bestSource } from '$lib/match';
   import { rarityFor } from '$lib/rarity';
 
 
-  let { configured, panelId = 'lottery', storageKey = 'character-roll-import', count = $bindable(5), sharedCount = false, onteam }: { configured: boolean; panelId?: string; storageKey?: string; count?: number; sharedCount?: boolean; onteam?: (team: PoolCharacter[]) => void } = $props();
+  let { configured, panelId = 'lottery', storageKey = 'character-roll-import', count = $bindable(5), sharedCount = false, writing = false, onteam }: { configured: boolean; panelId?: string; storageKey?: string; count?: number; sharedCount?: boolean; writing?: boolean; onteam?: (team: PoolCharacter[]) => void } = $props();
   let username = $state('fhgeh');
   let includePlanned = $state(true);
 
@@ -12,6 +13,7 @@
   let popularity = $state(false);
   let minFavorites = $state<number | undefined>(500);
   const validThreshold = $derived(Number.isSafeInteger(minFavorites) && minFavorites! >= 0);
+  const writingEligible = $derived((job?.ratedFavoriteCounts ?? []).filter((n) => !popularity || (validThreshold && n !== null && n >= minFavorites!)).length);
   const eligible = $derived(job ? popularity ? (job.favoriteCounts ?? []).filter((n) => validThreshold && n >= minFavorites!).length : job.uniqueCharacters : 0);
   let characters = $state<PoolCharacter[]>([]);
   let busy = $state(false);
@@ -77,7 +79,7 @@
   function remember(id: string) { try { localStorage.setItem(storageKey, id); } catch { /* Storage may be disabled. */ } }
   $effect(() => {
     if (sharedCount) {
-      count;
+      count; writing;
       untrack(() => { ++generation; stopAnimation(); characters = []; rollNote = ''; onteam?.([]); });
     }
   });
@@ -127,7 +129,7 @@
     rolling = true; error = ''; onteam?.([]);
     const current = generation;
     try {
-      const result = await api(`/api/imports/${job.id}/roll`, { count, minFavorites: popularity ? minFavorites : null, requireFullCount: sharedCount });
+      const result = await api(`/api/imports/${job.id}/roll`, { count, minFavorites: popularity ? minFavorites : null, requireFullCount: sharedCount, writing });
       if (current !== generation) return;
       await revealRoll(result.characters, current, result.previews);
       if (current !== generation) return;
@@ -198,9 +200,10 @@
           <p class="roll-help" aria-live="polite">{validThreshold ? eligible + ' characters qualify. ' + (sharedCount ? count + ' are required for a match.' : 'Draws return up to ' + count + ' without duplicates.') : 'Enter a nonnegative whole number.'}</p>
           {#if job?.unknownFavorites}<p class="roll-help">{job.unknownFavorites} characters have no saved favorite count and are excluded. Import the profile again to refresh older data.</p>{/if}
         {/if}
+        {#if writing}<p class="roll-help">{writingEligible} characters have eligible rated sources. A completed import and {count} eligible characters are required. Re-import older profiles to fetch series ratings.</p>{/if}
         <div class="roll-controls">
           {#if !sharedCount}<div><label for={panelId + '-count'}>Characters per draw</label><select id={panelId + '-count'} bind:value={count}>{#each [5, 6, 7, 8, 9, 10] as size}<option value={size}>{size} characters</option>{/each}</select></div>{/if}
-          <button class="primary" onclick={roll} disabled={rolling || busy || !job || (popularity ? !validThreshold || eligible < (sharedCount ? count : 1) : job.uniqueCharacters < count)}>{rolling ? 'Drawing…' : 'Draw characters'}</button>
+          <button class="primary" onclick={roll} disabled={rolling || busy || !job || (writing && (job.state !== 'complete' || writingEligible < count)) || (popularity ? !validThreshold || eligible < (sharedCount ? count : 1) : job.uniqueCharacters < count)}>{rolling ? 'Drawing…' : 'Draw characters'}</button>
         </div>
         <p class="roll-help">{!popularity && job && job.uniqueCharacters < count ? 'Available once ' + count + ' unique characters are ready.' : working ? 'Early draws use only the characters collected so far.' : ''}</p>
         </div>
@@ -222,6 +225,10 @@
               </a>
               <p class="favorite-count">{typeof character.favorites === 'number' ? character.favorites.toLocaleString() + ' favorites' : 'Favorites unknown'}</p>
               <h3><a href={character.url} target="_blank" rel="noreferrer">{character.name}</a>{#if rarity} <span class="rarity-label" aria-label={rarity + ' rarity'}>{rarity}</span>{/if}</h3>
+              {#if writing && !(shuffling && index >= settledSlots)}
+                {@const source = bestSource(character)}
+                {#if source}<p class="writing-source"><strong>{source.score?.toFixed(2)}</strong> / 10 · <a href={'https://myanimelist.net/' + source.kind + '/' + source.id} target="_blank" rel="noreferrer">{source.name}</a> ({source.kind})</p>{/if}
+              {/if}
               <ul class="title-list">{#each character.titles.slice(0, 2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul>
               {#if character.titles.length > 2}<details class="more-titles"><summary>{character.titles.length - 2} more titles</summary><ul class="title-list">{#each character.titles.slice(2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul></details>{/if}
             </li>

@@ -83,3 +83,5 @@ Before a public launch, move the store/queue to a transactional database and dur
 Useful next features: per-status filters, main/supporting character filters, optional no-repeat sessions, and MAL OAuth for private-list access. The storage and provider boundaries allow those without replacing the interface.
 
 Source references: [MAL API](https://myanimelist.net/apiconfig/references/api/v2), [Tenrai API](https://api.tenrai.org/documentation), [SvelteKit](https://svelte.dev/docs/kit/introduction).
+
+WRITINGSCALING uses one community rating per character: the highest-rated title in their imported collection. Completed imports and full rated teams are required. Re-import older profiles to retrieve the MAL mean ratings; personal user ratings are not used. Shared series may contribute once for each character.

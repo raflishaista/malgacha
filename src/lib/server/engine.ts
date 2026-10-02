@@ -1,3 +1,4 @@
+import { bestSource } from '../match';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { mergeCast } from '../pool';
@@ -11,6 +12,7 @@ export function view(job: Job): JobView {
   const { titles, done, pool, failures, listed: _listed, ...rest } = job;
   return { ...rest, total: titles.length, processed: done.length, failed: Object.keys(failures).length,
     uniqueCharacters: Object.keys(pool).length,
+    ratedFavoriteCounts: Object.values(pool).filter((c) => bestSource(c)).map((c) => c.favorites ?? null),
     favoriteCounts: Object.values(pool).flatMap((c) => typeof c.favorites === "number" ? [c.favorites] : []),
     unknownFavorites: Object.values(pool).filter((c) => typeof c.favorites !== "number").length,
     failures: Object.entries(failures).map(([key, message]) => ({ title: titles.find((t) => titleKey(t) === key)?.name || key, message })) };

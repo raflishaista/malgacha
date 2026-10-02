@@ -7,7 +7,7 @@ vi.mock('node:timers/promises', () => ({ setTimeout: vi.fn(async () => undefined
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 it('follows both list paginations, includes NSFW entries, and filters only planned titles', async () => {
-  const item = (id: number, status: string) => ({ node: { id, title: `Title ${id}` }, list_status: { status } });
+  const item = (id: number, status: string) => ({ node: { id, title: `Title ${id}`, mean: 8.37 }, list_status: { status, score: 4 } });
   const responses = [
     { data: [item(1, 'completed'), item(2, 'plan_to_watch')], paging: { next: 'https://api.myanimelist.net/next' } },
     { data: [item(3, 'dropped')], paging: {} },
@@ -20,6 +20,8 @@ it('follows both list paginations, includes NSFW entries, and filters only plann
   const calls = fetcher.mock.calls as unknown as [string, RequestInit][];
   expect(new URL(calls[1][0]).searchParams.get('offset')).toBe('2');
   expect(new URL(calls[0][0]).searchParams.get('nsfw')).toBe('true');
+  expect(new URL(calls[0][0]).searchParams.get('fields')).toContain('mean');
+  expect(titles.every((title) => title.score === 8.37)).toBe(true);
   expect(calls[0][1].headers).toEqual({ 'X-MAL-CLIENT-ID': 'test-client' });
 });
 
