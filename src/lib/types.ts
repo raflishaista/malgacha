@@ -1,7 +1,7 @@
 export type MediaKind = 'anime' | 'manga';
 export type Title = { id: number; kind: MediaKind; name: string; score?: number | null; status: string };
 export type Character = { id: number; name: string; image: string | null; favorites?: number | null; url: string };
-export type PoolCharacter = Character & { titles: Title[] };
+export type PoolCharacter = Character & { titles: Title[]; power?: import('./power').Power };
 export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'partial' | 'error' | 'cancelled';
 export type Job = {
   id: string;

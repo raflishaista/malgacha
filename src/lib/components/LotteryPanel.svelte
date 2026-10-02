@@ -5,7 +5,7 @@
   import { rarityFor } from '$lib/rarity';
 
 
-  let { configured, panelId = 'lottery', storageKey = 'character-roll-import', count = $bindable(5), sharedCount = false, writing = false, onteam }: { configured: boolean; panelId?: string; storageKey?: string; count?: number; sharedCount?: boolean; writing?: boolean; onteam?: (team: PoolCharacter[]) => void } = $props();
+  let { configured, panelId = 'lottery', storageKey = 'character-roll-import', count = $bindable(5), sharedCount = false, writing = false, powerscaling = false, onteam }: { configured: boolean; panelId?: string; storageKey?: string; count?: number; sharedCount?: boolean; writing?: boolean; powerscaling?: boolean; onteam?: (team: PoolCharacter[]) => void } = $props();
   let username = $state('fhgeh');
   let includePlanned = $state(true);
 
@@ -79,7 +79,7 @@
   function remember(id: string) { try { localStorage.setItem(storageKey, id); } catch { /* Storage may be disabled. */ } }
   $effect(() => {
     if (sharedCount) {
-      count; writing;
+      count; writing; powerscaling;
       untrack(() => { ++generation; stopAnimation(); characters = []; rollNote = ''; onteam?.([]); });
     }
   });
@@ -134,7 +134,17 @@
       await revealRoll(result.characters, current, result.previews);
       if (current !== generation) return;
       rollNumber++;
-      onteam?.(result.characters);
+      if (powerscaling) {
+        rollNote = 'Checking VS Battles tiers… First-time lookups may take a while.';
+        const jobId = job.id;
+        for (const character of characters) {
+          if (current !== generation) return;
+          const power = await api('/api/imports/' + jobId + '/power', { characterId: character.id }).catch(() => ({ tier: null, status: 'unavailable' as const, checkedAt: new Date().toISOString() }));
+          if (current !== generation) return;
+          characters = characters.map((c) => c.id === character.id ? { ...c, power } : c);
+        }
+      }
+      onteam?.(characters);
       rollNote = `${result.partial ? 'Early roll' : 'Full-pool roll'} · sampled from ${result.poolSize.toLocaleString()} unique characters${popularity ? ` with at least ${minFavorites} favorites` : ''}${result.characters.length < count ? ` · only ${result.characters.length} qualify` : ''}`;
     } catch (cause) { error = cause instanceof Error ? cause.message : 'Could not roll.'; }
     finally { rolling = false; }
@@ -220,9 +230,11 @@
             <li class="character-entry" data-rarity={rarity} class:slot-rolling={shuffling && index >= settledSlots}>
               <div class="entry-meta"><span>{String(index + 1).padStart(2, '0')}</span><span>MAL {character.id}</span></div>
               <a class="portrait" href={character.url} target="_blank" rel="noreferrer" aria-label={'View ' + character.name + ' on MyAnimeList (opens in a new tab)'}>
+                {#if powerscaling && !(shuffling && index >= settledSlots)}<span class="power-tier" title={character.power?.raw || 'Highest explicit tier on the matched VS Battles profile'}>{character.power?.tier ?? (character.power?.status === 'unavailable' ? 'Unavailable' : character.power ? 'Unranked' : 'Checking tier…')}</span>{/if}
                 <span class="portrait-fallback" aria-hidden="true"><span>{character.name.split(' ').map((word) => word[0]).slice(0, 2).join('')}</span><small>No portrait</small></span>
                 {#key character.id}{#if character.image}<img src={character.image} alt={character.name} loading={shuffling ? 'eager' : 'lazy'} onerror={(event) => { (event.currentTarget as HTMLImageElement).style.display = 'none'; }} />{/if}{/key}
               </a>
+              {#if powerscaling && character.power?.url && !(shuffling && index >= settledSlots)}<p class="power-source"><a href={character.power.url} target="_blank" rel="noreferrer">VS Battles source</a>{#if character.power.key}<span title={character.power.key}> · {character.power.raw}</span>{/if}</p>{/if}
               <p class="favorite-count">{typeof character.favorites === 'number' ? character.favorites.toLocaleString() + ' favorites' : 'Favorites unknown'}</p>
               <h3><a href={character.url} target="_blank" rel="noreferrer">{character.name}</a>{#if rarity} <span class="rarity-label" aria-label={rarity + ' rarity'}>{rarity}</span>{/if}</h3>
               {#if writing && !(shuffling && index >= settledSlots)}
