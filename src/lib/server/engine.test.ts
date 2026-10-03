@@ -30,6 +30,57 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('allows one saved replacement after victory, preserving the other four instances', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    await engine.journeyOpponents(job.id);
+    await expect(engine.journeyBattle(job.id, undefined, team[0].instanceId)).rejects.toThrow('after each victory');
+    const saved = (await store.getJob(job.id))!;
+    saved.starterTeam = team.map(c => ({ ...c, favorites: 100 }));
+    await store.saveJob(saved);
+    expect((await engine.journeyBattle(job.id, 0)).result).toEqual({ left: 500, right: 0 });
+    const reward = await engine.journeyBattle(job.id, undefined, team[0].instanceId);
+    expect(reward.rewardUsed).toBe(true);
+    expect(team.some(c => c.id === reward.characters[0].id)).toBe(false);
+    expect(reward.characters.slice(1)).toEqual(saved.starterTeam.slice(1));
+    expect(await engine.journeyTeam(job.id)).toEqual(reward.characters);
+    await expect(engine.journeyBattle(job.id, undefined, team[1].instanceId)).rejects.toThrow('after each victory');
+    await engine.journeyOpponents(job.id);
+    await expect(engine.journeyBattle(job.id, undefined, team[1].instanceId)).rejects.toThrow('after each victory');
+  });
+  it('saves one journey team for concurrent requests and restores it after restart', async () => {
+    const store = await setup();
+    const providers = { lists: vi.fn(async () => []), cast: vi.fn(async () => []) };
+    const engine = new Engine(store, providers, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const [first, second] = await Promise.all([engine.journeyTeam(job.id), engine.journeyTeam(job.id)]);
+    expect(first).toHaveLength(5);
+    expect(second).toEqual(first);
+    const restarted = new Engine(store, providers, 0);
+    expect(await restarted.journeyTeam(job.id)).toEqual(first);
+    expect((await store.getJob(job.id))!.starterTeam).toEqual(first);
+    const opponents = await restarted.journeyOpponents(job.id);
+    expect(opponents).toHaveLength(3);
+    expect(opponents.every(team => team.length === 5 && team.every(c => c.instanceId && c.baseStats))).toBe(true);
+    expect(await restarted.journeyTeam(job.id)).toEqual(first);
+    const rerolled = await restarted.journeyTeam(job.id, true);
+    expect(rerolled.every(c => !first.some(old => old.instanceId === c.instanceId))).toBe(true);
+    expect(rerolled.map(c => c.baseStats)).not.toEqual(first.map(c => c.baseStats));
+    expect(await restarted.journeyTeam(job.id)).toEqual(rerolled);
+    // A legacy team receives stats once without changing its characters.
+    const saved = (await store.getJob(job.id))!;
+    saved.starterTeam = first.map(({ instanceId, baseStats, statRarity, ...character }) => character);
+    await store.saveJob(saved);
+    const migrated = await restarted.journeyTeam(job.id);
+    expect(migrated.map(c => c.id)).toEqual(first.map(c => c.id));
+    expect(migrated.every(c => c.baseStats && c.instanceId)).toBe(true);
+    expect(await restarted.journeyTeam(job.id)).toEqual(migrated);
+    expect(Object.values((await store.getJob(job.id))!.pool).every(c => !('baseStats' in c))).toBe(true);
+  });
   it('keeps the same profile independent across comparison panels', async () => {
     const store = await setup();
     const providers = { lists: vi.fn(async () => [title]), cast: vi.fn(async () => [character]) };

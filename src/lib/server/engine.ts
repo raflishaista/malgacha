@@ -1,4 +1,9 @@
-import { bestSource } from '../match';
+import { starterTeam, opponentTeams } from '../journeys';
+import { generateBaseStats } from '../stats';
+import { rarityFor } from '../rarity';
+import type { JourneyCharacter } from '../types';
+import { randomInt } from 'node:crypto';
+import { bestSource, favoriteTotal } from '../match';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { mergeCast } from '../pool';
@@ -68,6 +73,65 @@ export class Engine {
       this.queue.push(job.id);
       this.kick();
       return job;
+    });
+  }
+  async journeyOpponents(id: string): Promise<JourneyCharacter[][]> {
+    await this.init();
+    return this.serialize(async () => {
+      const job = await this.store.getJob(id);
+      if (!job || job.scope !== 'journeys' || job.state !== 'complete' || !job.starterTeam) throw new Error('Roll your starting team before departing.');
+      const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+      const teams = opponentTeams(Object.values(job.pool), random).map(team => team.map(character => {
+        const statRarity = rarityFor(character.favorites) ?? 'N';
+        return { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, random) };
+      }));
+      job.encounter = { teams };
+      await this.store.saveJob(job);
+      return teams;
+    });
+  }
+  async journeyTeam(id: string, reroll = false): Promise<JourneyCharacter[]> {
+    await this.init();
+    return this.serialize(async () => {
+      const job = await this.store.getJob(id);
+      if (!job || job.scope !== 'journeys') throw new Error('Journey import not found.');
+      if (job.state !== 'complete') throw new Error('Finish importing before rolling your starting team.');
+      const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+      const selected = !reroll && job.starterTeam ? job.starterTeam : starterTeam(Object.values(job.pool), random);
+      const team = selected.map((character): JourneyCharacter => {
+        if ('baseStats' in character && 'instanceId' in character && 'statRarity' in character) return character as JourneyCharacter;
+        const statRarity = rarityFor(character.favorites) ?? 'N';
+        return { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, random) };
+      });
+      job.starterTeam = team;
+      if (reroll) delete job.encounter;
+      await this.store.saveJob(job);
+      return team;
+    });
+  }
+  async journeyBattle(id: string, opponent?: number, replace?: string) {
+    await this.init();
+    return this.serialize(async () => {
+      const job = await this.store.getJob(id);
+      if (!job || job.scope !== 'journeys' || !job.starterTeam || !job.encounter) throw new Error('Depart before fighting.');
+      const encounter = job.encounter;
+      if (replace !== undefined) {
+        if (!encounter.result || encounter.result.left <= encounter.result.right || encounter.rewardUsed) throw new Error('One replacement is available after each victory.');
+        const index = job.starterTeam.findIndex(c => 'instanceId' in c && c.instanceId === replace);
+        if (index < 0) throw new Error('Team member not found.');
+        const ids = new Set(job.starterTeam.map(c => c.id));
+        const pool = Object.values(job.pool).filter(c => !ids.has(c.id));
+        if (!pool.length) throw new Error('No different characters are available in this pool.');
+        const character = pool[randomInt(pool.length)];
+        const statRarity = rarityFor(character.favorites) ?? 'N';
+        job.starterTeam[index] = { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, () => randomInt(0, 2 ** 32) / 2 ** 32) };
+        encounter.rewardUsed = true;
+      } else {
+        if (!Number.isInteger(opponent) || opponent! < 0 || opponent! >= encounter.teams.length) throw new Error('Choose an opponent.');
+        if (!encounter.result) encounter.result = { left: favoriteTotal(job.starterTeam), right: favoriteTotal(encounter.teams[opponent!]) };
+      }
+      await this.store.saveJob(job);
+      return { result: encounter.result, characters: job.starterTeam, rewardUsed: !!encounter.rewardUsed };
     });
   }
   async cancel(id: string) {

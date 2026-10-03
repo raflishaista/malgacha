@@ -2,11 +2,14 @@ export type MediaKind = 'anime' | 'manga';
 export type Title = { id: number; kind: MediaKind; name: string; score?: number | null; status: string };
 export type Character = { id: number; name: string; image: string | null; favorites?: number | null; url: string };
 export type PoolCharacter = Character & { titles: Title[]; power?: import('./power').Power };
+export type JourneyCharacter = PoolCharacter & { instanceId: string; baseStats: import('./stats').BaseStats; statRarity: import('./stats').Rarity };
 export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'partial' | 'error' | 'cancelled';
 export type Job = {
   id: string;
   username: string;
   scope?: string;
+  starterTeam?: (PoolCharacter | JourneyCharacter)[];
+  encounter?: { teams: JourneyCharacter[][]; result?: { left: number; right: number }; rewardUsed?: boolean };
   demo: boolean;
   includePlanned: boolean;
   state: ImportState;

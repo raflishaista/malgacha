@@ -1,0 +1,362 @@
+[
+  {
+    "characterId": 17,
+    "characterName": "Uzumaki, Naruto",
+    "title": "Shadow Clones",
+    "description": "Summons a copy of Naruto. The clone cannot create more clones."
+  },
+  {
+    "characterId": 246,
+    "characterName": "Son, Gokuu",
+    "title": "Super Saiyan",
+    "description": "When HP falls to half or below, gains an attack boost for the rest of the battle."
+  },
+  {
+    "characterId": 913,
+    "characterName": "Vegeta",
+    "title": "Zenkai Boost",
+    "description": "Gains a permanent stat boost after HP falls to 10% or below."
+  },
+  {
+    "characterId": 40,
+    "characterName": "Monkey D., Luffy",
+    "title": "Gear 5",
+    "description": "Temporarily reflects incoming attacks back at their attackers."
+  },
+  {
+    "characterId": 5,
+    "characterName": "Kurosaki, Ichigo",
+    "title": "Getsuga Tenshou",
+    "description": "Periodically unleashes an empowered attack."
+  },
+  {
+    "characterId": 417,
+    "characterName": "Lamperouge, Lelouch",
+    "title": "Geass",
+    "description": "Temporarily forces a random enemy to attack their own team."
+  },
+  {
+    "characterId": 4003,
+    "characterName": "Kuujou, Joutarou",
+    "title": "Star Platinum: The World",
+    "description": "Stops all other units, including allies, for a short time. Only Joutarou can attack during the time stop."
+  },
+  {
+    "characterId": 4004,
+    "characterName": "Brando, Dio",
+    "title": "The World",
+    "description": "Stops all other units, including allies, for a short time. Only Dio can attack during the time stop."
+  },
+  {
+    "characterId": 38005,
+    "characterName": "Akemi, Homura",
+    "title": "Reset",
+    "description": "Resets the battle to its initial state the first time the team loses."
+  },
+  {
+    "characterId": 118735,
+    "characterName": "Natsuki, Subaru",
+    "title": "Reset",
+    "description": "Resets the battle to its initial state the first time the team loses."
+  },
+  {
+    "characterId": 35252,
+    "characterName": "Okabe, Rintarou",
+    "title": "Reset",
+    "description": "Resets the battle to its initial state the first time the team loses."
+  },
+  {
+    "characterId": 2473,
+    "characterName": "Satoshi",
+    "title": "I Choose You",
+    "description": "Summons Pikachu to the team."
+  },
+  {
+    "characterId": 7035,
+    "characterName": "Red",
+    "title": "I Choose You",
+    "description": "Summons Pikachu to the team."
+  },
+  {
+    "characterId": 162150,
+    "characterName": "Oguri Cap",
+    "title": "Festive Miracle",
+    "description": "After 3 skils have been activated on either team, gain a massive stat boost."
+  },
+  {
+    "characterId": 87275,
+    "characterName": "Kaneki, Ken",
+    "title": "Kakuja",
+    "description": "Heals and powers up himself whenever another unit dies."
+  },
+  {
+    "characterId": 422,
+    "characterName": "Guts",
+    "title": "Struggler",
+    "description": "Continues fighting for a short time after HP reaches zero."
+  },
+  {
+    "characterId": 89,
+    "characterName": "Ikari, Shinji",
+    "title": "Berserk Mode",
+    "description": "Continues fighting briefly after taking fatal damage, with boosted stats and a chance to attack allies."
+  },
+  {
+    "characterId": 99,
+    "characterName": "Yuy, Heero",
+    "title": "Self-Destruct",
+    "description": "Deals damage to every enemy unit upon death."
+  },
+  {
+    "characterId": 1335,
+    "characterName": "Ray, Amuro",
+    "title": "Last Shooting",
+    "description": "When dying, makes a high powered attack at one unit on the enemy team."
+  },
+  {
+    "characterId": 40882,
+    "characterName": "Yeager, Eren",
+    "title": "Rumbling",
+    "description": "Periodically deal damage to all units."
+  },
+  {
+    "characterId": 2257,
+    "characterName": "Simon",
+    "title": "Gattai da!",
+    "description": "Absorbs all other allied units to become a single empowered unit."
+  },
+  {
+    "characterId": 175198,
+    "characterName": "Ryoumen, Sukuna",
+    "title": "Malevolent Shrine",
+    "description": "Once per battle, deals massive damage to the opposing team when activated."
+  },
+  {
+    "characterId": 109929,
+    "characterName": "Kageyama, Shigeo",
+    "title": "100%",
+    "description": "Starts a counter at the beginning of battle. Gains boosted stats when the counter reaches 100."
+  },
+  {
+    "characterId": 124731,
+    "characterName": "Asta",
+    "title": "Anti-Magic",
+    "description": "Deals increased attack damage to units from a manually selected set of magic series: Fairy Tail, Mushoku Tensei, Mashle, Overlord, KonoSuba, Puella Magi Madoka Magica, Re:Zero, The Irregular at Magic High School, Frieren: Beyond Journey’s End, and many others."
+  },
+  {
+    "characterId": 170732,
+    "characterName": "Denji",
+    "title": "Kickstart",
+    "description": "After dying, revives when another unit is killed."
+  },
+  {
+    "characterId": 1,
+    "characterName": "Spiegel, Spike",
+    "title": "Bebop Crew",
+    "description": "Replaces allied units with members of the Bebop crew, including Edward and Ein."
+  },
+  {
+    "characterId": 1374,
+    "characterName": "Mutou, Yuugi",
+    "title": "King of Games",
+    "description": "Periodically activates a random effect:\nMirror Force: Reflects damage once.\nSwords of Revealing Light: Temporarily prevents the enemy team from attacking.\nDark Magic Curtain: Summons Mahad / Dark Magician as a special allied unit.\nKuriboh: Negates one instance of damage.\nCatapult Turtle: Sacrifices one allied unit to damage an enemy.\nMonster Reborn: Revives a fallen unit.\nSlifer the Sky Dragon: Summons a powerful special unit to the team."
+  },
+  {
+    "characterId": 1375,
+    "characterName": "Yami Yuugi",
+    "title": "King of Games",
+    "description": "Periodically activates a random effect:\nMirror Force: Reflects damage once.\nSwords of Revealing Light: Temporarily prevents the enemy team from attacking.\nDark Magic Curtain: Summons Mahad / Dark Magician as a special allied unit.\nKuriboh: Negates one instance of damage.\nCatapult Turtle: Sacrifices one allied unit to damage an enemy.\nMonster Reborn: Revives a fallen unit.\nSlifer the Sky Dragon: Summons a powerful special unit to the team."
+  },
+  {
+    "characterId": 2589,
+    "characterName": "Shima, Tetsuo",
+    "title": "Mutation",
+    "description": "When dying, absorbs and kills all other allied units to regain HP."
+  },
+  {
+    "characterId": 15,
+    "characterName": "Makunouchi, Ippo",
+    "title": "Dempsey Roll",
+    "description": "Can dodge attacks completely, taking no damage. Gains speed after each successful dodge."
+  },
+  {
+    "characterId": 136805,
+    "characterName": "Tachibana, Taki",
+    "title": "Musubi",
+    "description": "Swaps places with a random enemy unit for the remainder of the battle."
+  },
+  {
+    "characterId": 137467,
+    "characterName": "Miyamizu, Mitsuha",
+    "title": "Musubi",
+    "description": "Swaps places with a random enemy unit for the remainder of the battle."
+  },
+  {
+    "characterId": 163847,
+    "characterName": "Itadori, Yuuji",
+    "title": "Black Flash",
+    "description": "Attacks have a chance to deal double damage."
+  },
+  {
+    "characterId": 80,
+    "characterName": "Yagami, Light",
+    "title": "Death Note",
+    "description": "Does not attack. After a delay, a random enemy unit dies."
+  },
+  {
+    "characterId": 71,
+    "characterName": "Lawliet, L",
+    "title": "Lind L. Taylor",
+    "description": "The first allied unit about to die from an attack blocks that attack and becomes briefly invulnerable."
+  },
+  {
+    "characterId": 72921,
+    "characterName": "Meliodas",
+    "title": "Full Counter",
+    "description": "Reflects the first ability that targets this unit back to its source."
+  },
+  {
+    "characterId": 16412,
+    "characterName": "Endou, Mamoru",
+    "title": "God Hand",
+    "description": "Draws enemy attacks to this unit and reduces incoming damage."
+  },
+  {
+    "characterId": 177491,
+    "characterName": "Isagi, Yoichi",
+    "title": "Metavision",
+    "description": "Predicts and prevents the first enemy ability activation."
+  },
+  {
+    "characterId": 203839,
+    "characterName": "Hakari, Kinji",
+    "title": "Idle Death Gamble",
+    "description": "Periodically rolls three numbers. Rolling three identical numbers restores this unit to full HP."
+  },
+  {
+    "characterId": 5578,
+    "characterName": "Itou, Kaiji",
+    "title": "Ultimate Survivor",
+    "description": "When taking fatal damage, has a chance to survive with 1 HP. This chance decreases each time it succeeds."
+  },
+  {
+    "characterId": 196899,
+    "characterName": "Takakura, Ken",
+    "title": "Turbo Granny",
+    "description": "For the first few moments of a battle, this unit gets a boost on Speed."
+  },
+  {
+    "characterId": 22036,
+    "characterName": "Araragi, Koyomi",
+    "title": "Koyomi Vamp",
+    "description": "Periodically heals a percentage of HP."
+  },
+  {
+    "characterId": 2511,
+    "characterName": "Kenshirou",
+    "title": "Hokuto Hyakuretsu Ken",
+    "description": "After this unit attacks one enemy a certain amount of times, that enemy is guaranteed to die after a short delay."
+  },
+  {
+    "characterId": 134263,
+    "characterName": "Donato, Marcille",
+    "title": "Forbidden Magic",
+    "description": "Revives an ally after they die."
+  },
+  {
+    "characterId": 117921,
+    "characterName": "All Might",
+    "title": "One For All",
+    "description": "When this unit is rerolled, its replacement inherits a percentage of its stats and gains One For All."
+  },
+  {
+    "characterId": 141358,
+    "characterName": "All For One",
+    "title": "All For One",
+    "description": "Gains the abilities of units this character kills."
+  },
+  {
+    "characterId": 18769,
+    "characterName": "Kuroko, Tetsuya",
+    "title": "Misdirection",
+    "description": "Cannot be targeted by attacks unless this is the last unit on the team."
+  },
+  {
+    "characterId": 9700,
+    "characterName": "Fudou, Yuusei",
+    "title": "Stardust Dragon",
+    "description": "When another allied unit is about to die, temporarily sacrifices this unit’s actions: Yuusei becomes invulnerable and cannot attack. The protected ally cannot die until Yuusei returns to action."
+  },
+  {
+    "characterId": 75216,
+    "characterName": "Yukihira, Souma",
+    "title": "Gotcha Pork Roast",
+    "description": "Periodically cooks to fill a cooking gauge. When it fills, heals the ally with the lowest HP and resets the gauge."
+  },
+  {
+    "characterId": 12323,
+    "characterName": "Izumi, Shinichi",
+    "title": "Migi",
+    "description": "Strikes twice with each attack."
+  },
+  {
+    "characterId": 140046,
+    "characterName": "Reg",
+    "title": "Incinerator",
+    "description": "Delivers powerful attacks that damage multiple enemies. After five attacks, must recharge before attacking again."
+  },
+  {
+    "characterId": 177542,
+    "characterName": "Adam",
+    "title": "Eyes of the Lord",
+    "description": "Copies any ability that hits this unit."
+  },
+  {
+    "characterId": 672,
+    "characterName": "Sakata, Gintoki",
+    "title": "Parody",
+    "description": "Gains a random passive ability. Show the copied ability in the label, for example: Parody (Getsuga Tenshou)."
+  },
+  {
+    "characterId": 434,
+    "characterName": "Onizuka, Eikichi",
+    "title": "Driver’s High",
+    "description": "Increases allied units’ stats by a set amount."
+  },
+  {
+    "characterId": 2867,
+    "characterName": "Kurono, Kei",
+    "title": "GANTZ",
+    "description": "Permanently gains points for each kill. When a unit dies, spends 100 points to revive them if enough points are available. If a battle ends with no units having died and at least 100 points, spends 100 points on a stat upgrade instead."
+  },
+  {
+    "characterId": 10499,
+    "characterName": "Hanma, Yuujirou",
+    "title": "Strongest Creature on Earth",
+    "description": "If this unit does not have the highest Attack, replaces this unit’s Attack with the highest Attack stat across both teams, plus 10."
+  },
+  {
+    "characterId": 132742,
+    "characterName": "Tokita, Ouma",
+    "title": "Advance",
+    "description": "After reaching half health, gain a huge stat boost. Dies after a few moments of taking this buff."
+  },
+  {
+    "characterId": 2819,
+    "characterName": "Fujiwara, Takumi",
+    "title": "Tofu Delivery",
+    "description": "Speed cannot be reduced."
+  },
+  {
+    "characterId": 28,
+    "characterName": "Kurapika",
+    "title": "Judgment Chain",
+    "description": "Targets an enemy unit with a passive. When that unit's passive activates, instantly kill that unit."
+  },
+  {
+    "characterId": 193067,
+    "characterName": "Hiiragi, Utena",
+    "title": "Magia Baiser",
+    "description": "Gains attack against units from series' with the theme 'Mahou Shoujo'."
+  }
+]
