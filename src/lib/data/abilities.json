@@ -87,7 +87,7 @@
     "characterId": 87275,
     "characterName": "Kaneki, Ken",
     "title": "Kakuja",
-    "description": "Heals and powers up himself whenever another unit dies."
+    "description": "Whenever another unit dies, heals 15% of maximum HP and gains +5 Attack for the rest of the battle."
   },
   {
     "characterId": 422,
@@ -117,7 +117,7 @@
     "characterId": 40882,
     "characterName": "Yeager, Eren",
     "title": "Rumbling",
-    "description": "Periodically deal damage to all units."
+    "description": "Fills a separate gauge, then deals normal attack damage to all living enemies simultaneously."
   },
   {
     "characterId": 2257,
@@ -129,7 +129,7 @@
     "characterId": 175198,
     "characterName": "Ryoumen, Sukuna",
     "title": "Malevolent Shrine",
-    "description": "Once per battle, deals massive damage to the opposing team when activated."
+    "description": "Once per battle, deals rapid attacks to all of the units on the enemy team when activated."
   },
   {
     "characterId": 109929,
@@ -195,7 +195,7 @@
     "characterId": 163847,
     "characterName": "Itadori, Yuuji",
     "title": "Black Flash",
-    "description": "Attacks have a chance to deal double damage."
+    "description": "Attacks have a 30% chance to deal double damage."
   },
   {
     "characterId": 80,

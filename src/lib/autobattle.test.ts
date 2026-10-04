@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { simulateBattle, attackDamage, attackInterval, battleHP } from './autobattle';
+import { simulateBattle, attackDamage, attackInterval, battleHP, activeSeconds, ABILITY_RULES } from './autobattle';
 import { generateBaseStats, type Rarity } from './stats';
 import type { JourneyCharacter } from './types';
 let seed = 9234;
@@ -39,3 +39,57 @@ it('averages 20–40 seconds across 300 mixed-rarity battles', () => {
   expect(average).toBeLessThanOrEqual(40);
 });
 it('rejects incomplete teams', () => expect(() => simulateBattle(team().slice(1), team())).toThrow('five'));
+
+function fixedTeams() {
+  return [team(), team()].map(side => side.map(c => ({ ...c, baseStats: { hp: 500, attack: 125, defense: 125, speed: 125 } })));
+}
+it('Black Flash doubles final damage at 30%, on either team', () => {
+  for (const side of [0, 1]) {
+    for (const [roll, critical] of [[0.299, true], [0.3, false]] as const) {
+      const teams = fixedTeams(); teams[side][0].id = 163847;
+      teams[side][0].baseStats.speed = 200;
+      const replay = simulateBattle(teams[0], teams[1], () => roll);
+      const first = replay.events[0];
+      expect(first.attacker).toBe(side * 5);
+      expect(first.damage).toBe(critical ? 50 : 25);
+      expect(first.ability).toBe(critical ? 'Black Flash' : undefined);
+    }
+  }
+});
+it('The World freezes every other attacker and preserves their ATB progress', () => {
+  for (const side of [0, 1]) {
+    const teams = fixedTeams(); teams[side][0].id = 4004;
+    const replay = simulateBattle(teams[0], teams[1], () => 0);
+    const stop = replay.stops![0];
+    expect(stop.start).toBe(10);
+    expect(stop.end - stop.start).toBe(3);
+    const actions = replay.events.filter(e => e.time >= stop.start && e.time < stop.end);
+    expect(actions.every(e => e.attacker === stop.owner)).toBe(true);
+    expect(actions.some(e => !e.kind)).toBe(true);
+    expect(activeSeconds(0, 12, side === 0 ? 5 : 0, replay.stops)).toBe(10);
+    expect(activeSeconds(0, 12, stop.owner, replay.stops)).toBe(12);
+  }
+});
+it('Kakuja reacts to allied/enemy deaths, caps healing and resets its buffs each battle', () => {
+  const teams = fixedTeams(); teams[0][1].id = 87275; teams[1][1].id = 87275;
+  teams[1][0].baseStats.hp = 1;
+  const before = structuredClone(teams);
+  const replay = simulateBattle(teams[0], teams[1], () => 0);
+  const heals = replay.events.filter(e => e.kind === 'heal');
+  expect(heals.slice(0, 2).map(e => e.attacker)).toEqual([1, 6]);
+  expect(heals.slice(0, 2).every(e => e.attackBonus === 5)).toBe(true);
+  expect(heals.every(e => e.hp <= 500 && -e.damage <= 500 * ABILITY_RULES.kakujaHeal)).toBe(true);
+  expect(teams).toEqual(before);
+  expect(simulateBattle(teams[0], teams[1], () => 0)).toEqual(replay);
+});
+it('Rumbling hits all living enemies simultaneously, without resetting normal ATB', () => {
+  for (const side of [0, 1]) {
+    const teams = fixedTeams(); teams[side][0].id = 40882;
+    const replay = simulateBattle(teams[0], teams[1], () => 0);
+    const hits = replay.events.filter(e => e.kind === 'rumbling' && e.time === 8);
+    expect(hits).toHaveLength(5);
+    expect(hits.every(e => (e.target < 5) !== (side === 0) && e.damage === 25)).toBe(true);
+    expect(hits.filter(e => e.ability === 'Rumbling')).toHaveLength(1);
+    expect(replay.events.find(e => e.attacker === side * 5 && !e.kind && e.time > 8)!.time).toBeCloseTo(10.8);
+  }
+});

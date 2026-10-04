@@ -30,6 +30,30 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('increments arena floors once per idle victory and persists across reloads', async () => {
+    const store = await setup();
+    const providers = { lists: vi.fn(async () => []), cast: vi.fn(async () => []) };
+    const engine = new Engine(store, providers, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    const saved = (await store.getJob(job.id))!;
+    saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 10000, attack: 10000, defense: 10000, speed: 10000 } }));
+    await store.saveJob(saved);
+    await engine.journeyOpponents(job.id);
+    const first = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(first.result!.winner).toBe('left');
+    expect(first.replay!.floor).toBe(0);
+    expect(first.arenaWins).toBe(1);
+    expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).arenaWins).toBe(1);
+    const restarted = new Engine(store, providers, 0);
+    await restarted.journeyOpponents(job.id);
+    const second = await restarted.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(second.replay!.floor).toBe(1);
+    expect(second.arenaWins).toBe(2);
+    await restarted.journeyOpponents(job.id);
+    expect((await restarted.journeyBattle(job.id, 0, undefined, 'clout')).arenaWins).toBe(2);
+  });
   it('stores an idle battle once and preserves the original team stats', async () => {
     const store = await setup();
     const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);

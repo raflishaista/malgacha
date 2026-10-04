@@ -8,6 +8,7 @@ export type Job = {
   id: string;
   username: string;
   scope?: string;
+  arenaWins?: number;
   starterTeam?: (PoolCharacter | JourneyCharacter)[];
   encounter?: { teams: JourneyCharacter[][]; result?: { left: number; right: number; mode?: 'idle' | 'clout'; winner?: 'left' | 'right' | 'draw' }; replay?: import('./autobattle').BattleReplay; rewardUsed?: boolean };
   demo: boolean;

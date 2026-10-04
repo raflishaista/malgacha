@@ -1,10 +1,13 @@
 <script lang="ts">
   import { onMount, untrack } from 'svelte';
-  import { attackInterval, battleHP, type BattleReplay } from '$lib/autobattle';
+  import { attackInterval, battleHP, activeSeconds, ABILITY_RULES, type BattleReplay } from '$lib/autobattle';
   let { replay, onfinish }: { replay: BattleReplay; onfinish: () => void } = $props();
   let elapsed = $state(0);
   let hp = $state(untrack(() => replay.units.map(c => battleHP(c.baseStats.hp))));
   let lastAttack = $state(Array(10).fill(0) as number[]);
+  let lastRumbling = $state(Array(10).fill(0) as number[]);
+  let attackBonus = $state(Array(10).fill(0) as number[]);
+  let floats = $state<{ id: number; unit: number; title: string; time: number }[]>([]);
   let hit = $state(Array(10).fill(-1) as number[]);
   let lines = $state<{ id: number; time: number; x1: number; y1: number; x2: number; y2: number }[]>([]);
   let board: HTMLDivElement;
@@ -19,7 +22,16 @@
         elapsed = Math.min(replay.duration, elapsed + delta);
         while (index < replay.events.length && replay.events[index].time <= elapsed) {
           const event = replay.events[index];
-          hp[event.target] = event.hp; lastAttack[event.attacker] = event.time; hit[event.target] = index;
+          hp[event.target] = event.hp;
+          if (!event.kind) lastAttack[event.attacker] = event.time;
+          if (event.kind === 'rumbling') lastRumbling[event.attacker] = event.time;
+          if (event.attackBonus !== undefined) attackBonus[event.attacker] = event.attackBonus;
+          if (event.ability) floats.push({ id: index, unit: event.attacker, title: event.ability, time: elapsed });
+          if (event.kind === 'heal' || event.kind === 'world') {
+            announcement = replay.units[event.attacker].name + ' activates ' + event.ability + '.';
+            index++; continue;
+          }
+          hit[event.target] = index;
           const from = board.querySelector(`[data-unit="${event.attacker}"]`)?.getBoundingClientRect();
           const to = board.querySelector(`[data-unit="${event.target}"]`)?.getBoundingClientRect();
           const bounds = board.getBoundingClientRect();
@@ -27,6 +39,7 @@
           announcement = `${replay.units[event.attacker].name} hits ${replay.units[event.target].name} for ${event.damage.toFixed(1)} damage.${event.hp === 0 ? ' Knocked out.' : ''}`;
           index++;
         }
+        floats = floats.filter(item => elapsed - item.time < 1.5);
         lines = lines.filter(line => elapsed - line.time < 0.3);
         if (elapsed >= replay.duration) { finished = true; onfinish(); return; }
       }
@@ -38,16 +51,19 @@
 </script>
 
 <section class="battle" aria-label="Idle battle">
+  <h2 class="arena">Heaven's Arena : Floor {(replay.floor ?? 0) + (finished && replay.winner === 'left' ? 1 : 0)}</h2>
   <div class="battle-heading"><h2>Autobattle · {elapsed.toFixed(1)}s</h2>{#if !finished}<button onclick={() => paused = !paused}>{paused ? 'Resume' : 'Pause'}</button>{/if}</div>
   <div class="board" bind:this={board}>
     {#each [0, 1] as side}<section><h3>{side === 0 ? 'Your team' : 'Opponent'}</h3>
       {#each replay.units.slice(side * 5, side * 5 + 5) as unit, slot}
         {@const i = side * 5 + slot}
-        <div class="unit" class:knocked-out={hp[i] <= 0}>
-          <div class="portrait" data-unit={i}>{#key hit[i]}{#if unit.image}<img class:hit={hit[i] >= 0} src={unit.image} alt={unit.name} />{:else}<span class:hit={hit[i] >= 0}>{unit.name}</span>{/if}{/key}</div>
+        <div class="unit" class:knocked-out={hp[i] <= 0} class:frozen={hp[i] > 0 && replay.stops?.some(stop => stop.owner !== i && elapsed >= stop.start && elapsed < stop.end)}>
+          <div class="portrait" data-unit={i}>{#key hit[i]}{#if unit.image}<img class:hit={hit[i] >= 0} src={unit.image} alt={unit.name} />{:else}<span class:hit={hit[i] >= 0}>{unit.name}</span>{/if}{/key}{#each floats.filter(item => item.unit === i) as item (item.id)}<b class="ability-float">{item.title}</b>{/each}</div>
           <div class="readout"><strong>{unit.name}</strong><span>HP {Math.ceil(hp[i])} / {battleHP(unit.baseStats.hp)}{hp[i] <= 0 ? ' · KO' : ''}</span>
             <progress class="health" aria-label={`${unit.name} HP`} value={hp[i]} max={battleHP(unit.baseStats.hp)}></progress>
-            <span class="atb-label">ATB</span><progress class="atb" aria-label={`${unit.name} ATB`} max="1" value={hp[i] > 0 ? Math.min(1, (elapsed - lastAttack[i]) / attackInterval(unit.baseStats.speed)) : 0}></progress>
+            <span class="atb-label">ATB</span><progress class="atb" aria-label={`${unit.name} ATB`} max="1" value={hp[i] > 0 ? Math.min(1, activeSeconds(lastAttack[i], elapsed, i, replay.stops) / attackInterval(unit.baseStats.speed)) : 0}></progress>
+            {#if unit.id === 40882}<span class="atb-label">Rumbling</span><progress class="rumbling" aria-label={unit.name + ' Rumbling'} max="1" value={hp[i] > 0 ? Math.min(1, activeSeconds(lastRumbling[i], elapsed, i, replay.stops) / ABILITY_RULES.rumblingCooldown) : 0}></progress>{/if}
+            {#if attackBonus[i] > 0}<span>ATK +{attackBonus[i]} · Kakuja</span>{/if}
           </div>
         </div>
       {/each}
@@ -59,12 +75,19 @@
 </section>
 
 <style>
+  .arena { color: var(--accent); margin-bottom: 16px; }
+  .frozen { background: #302443; }
+  .ability-float { position: absolute; bottom: 70%; left: 0; z-index: 6; white-space: nowrap; color: #ffcfec; background: #120e18; padding: 3px 6px; font-size: 12px; animation: ability-rise 1.5s ease-out forwards; pointer-events: none; }
+  @keyframes ability-rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-35px); opacity: 0; } }
+  .rumbling::-webkit-progress-value { background: #e5a052; }
+  .rumbling::-moz-progress-bar { background: #e5a052; }
+  @media (prefers-reduced-motion: reduce) { .ability-float { animation: none; } }
   .battle { margin: 24px 0; border-top: 1px solid var(--purple-line); padding-top: 20px; }
   .battle-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .board { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
   .board section { min-width: 0; }
   .unit { display: flex; gap: 12px; padding: 12px 0; min-height: 110px; border-bottom: 1px solid var(--line); }
-  .portrait { width: 76px; height: 90px; flex-shrink: 0; overflow: hidden; }
+  .portrait { width: 76px; height: 90px; flex-shrink: 0; overflow: visible; }
   .portrait span { font-size: 11px; display: block; padding: 4px; }
   .readout { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; font-size: 12px; }
   .readout strong { overflow-wrap: anywhere; }

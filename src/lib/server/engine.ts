@@ -133,12 +133,14 @@ export class Engine {
           if (mode === 'idle') {
             encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32);
             const { left, right, winner } = encounter.replay;
+            encounter.replay.floor = job.arenaWins ?? 0;
+            if (winner === 'left') job.arenaWins = (job.arenaWins ?? 0) + 1;
             encounter.result = { left, right, winner, mode };
           } else encounter.result = { left: favoriteTotal(job.starterTeam), right: favoriteTotal(encounter.teams[opponent!]) };
         }
       }
       await this.store.saveJob(job);
-      return { result: encounter.result, replay: encounter.replay, characters: job.starterTeam, rewardUsed: !!encounter.rewardUsed };
+      return { result: encounter.result, replay: encounter.replay, arenaWins: job.arenaWins ?? 0, characters: job.starterTeam, rewardUsed: !!encounter.rewardUsed };
     });
   }
   async cancel(id: string) {

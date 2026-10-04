@@ -80,7 +80,7 @@
     {#if job && ['partial', 'error', 'cancelled'].includes(job.state)}<p>The import must finish before your team is drawn.</p><button class="secondary" disabled={busy} onclick={() => action('retry')}>Resume import</button>{/if}
     {#if error}<p role="alert" class="journey-error">{error}</p>{#if job?.state === 'complete' && !team.length}<button class="secondary" disabled={busy} onclick={() => action('roll')}>Retry team draw</button>{/if}{/if}
     {#if team.length}
-      <section class="journey-team"><h2>Your starting team</h2><button class="secondary" disabled={busy || polling || working} onclick={() => action('reroll')}>Reroll team (testing)</button><p class="muted">Hover over a character with an ability, or tap its ability title to read it. Autobattles use rolled base stats. Passive abilities are descriptions only.</p>{#key team}{#if job}<JourneyEncounter {team} jobId={job.id} />{/if}{/key}<p class="muted">This team is saved with this import. This browser remembers it; account sign-in is not available yet.</p></section>
+      <section class="journey-team"><h2>Your starting team</h2><button class="secondary" disabled={busy || polling || working} onclick={() => action('reroll')}>Reroll team (testing)</button><p class="muted">Hover over a character with an ability, or tap its ability title to read it. Autobattles use rolled base stats. Black Flash, The World, Kakuja, and Rumbling are active in autobattles; other abilities remain previews.</p>{#key team}{#if job}<JourneyEncounter {team} jobId={job.id} />{/if}{/key}<p class="muted">This team is saved with this import. This browser remembers it; account sign-in is not available yet.</p></section>
     {/if}
   </main>
 </div>
