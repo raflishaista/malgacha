@@ -30,6 +30,19 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('stores an idle battle once and preserves the original team stats', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    await engine.journeyOpponents(job.id);
+    const battle = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(battle.replay!.events.length).toBeGreaterThan(0);
+    expect(battle.result!.mode).toBe('idle');
+    expect(await engine.journeyBattle(job.id, 0, undefined, 'idle')).toEqual(battle);
+    expect(await engine.journeyTeam(job.id)).toEqual(team);
+  });
   it('allows one saved replacement after victory, preserving the other four instances', async () => {
     const store = await setup();
     const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);

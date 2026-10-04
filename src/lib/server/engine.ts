@@ -1,4 +1,5 @@
 import { starterTeam, opponentTeams } from '../journeys';
+import { simulateBattle } from '../autobattle';
 import { generateBaseStats } from '../stats';
 import { rarityFor } from '../rarity';
 import type { JourneyCharacter } from '../types';
@@ -109,14 +110,14 @@ export class Engine {
       return team;
     });
   }
-  async journeyBattle(id: string, opponent?: number, replace?: string) {
+  async journeyBattle(id: string, opponent?: number, replace?: string, mode: 'idle' | 'clout' = 'clout') {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
       if (!job || job.scope !== 'journeys' || !job.starterTeam || !job.encounter) throw new Error('Depart before fighting.');
       const encounter = job.encounter;
       if (replace !== undefined) {
-        if (!encounter.result || encounter.result.left <= encounter.result.right || encounter.rewardUsed) throw new Error('One replacement is available after each victory.');
+        if (!encounter.result || (encounter.result.winner ? encounter.result.winner !== 'left' : encounter.result.left <= encounter.result.right) || encounter.rewardUsed) throw new Error('One replacement is available after each victory.');
         const index = job.starterTeam.findIndex(c => 'instanceId' in c && c.instanceId === replace);
         if (index < 0) throw new Error('Team member not found.');
         const ids = new Set(job.starterTeam.map(c => c.id));
@@ -128,10 +129,16 @@ export class Engine {
         encounter.rewardUsed = true;
       } else {
         if (!Number.isInteger(opponent) || opponent! < 0 || opponent! >= encounter.teams.length) throw new Error('Choose an opponent.');
-        if (!encounter.result) encounter.result = { left: favoriteTotal(job.starterTeam), right: favoriteTotal(encounter.teams[opponent!]) };
+        if (!encounter.result) {
+          if (mode === 'idle') {
+            encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32);
+            const { left, right, winner } = encounter.replay;
+            encounter.result = { left, right, winner, mode };
+          } else encounter.result = { left: favoriteTotal(job.starterTeam), right: favoriteTotal(encounter.teams[opponent!]) };
+        }
       }
       await this.store.saveJob(job);
-      return { result: encounter.result, characters: job.starterTeam, rewardUsed: !!encounter.rewardUsed };
+      return { result: encounter.result, replay: encounter.replay, characters: job.starterTeam, rewardUsed: !!encounter.rewardUsed };
     });
   }
   async cancel(id: string) {

@@ -10,6 +10,8 @@ Roll anime and manga characters from your MyAnimeList collection. Import a publi
 
 ### Lottery
 
+![MALGacha second look](https://i.imgur.com/ughnsUo.png)
+
 Enter a MAL username or profile URL to import its anime and manga lists. Characters from those entries form your pool; a character appearing in several series is counted only once.
 
 Draw 5–10 characters at a time, or enable the popularity filter to set a minimum number of MAL favorites. You can start drawing while an import is still running. Larger collections take longer to prepare, but subsequent draws use the collected pool.
@@ -52,7 +54,7 @@ Each character gets randomly distributed HP, Attack, Defense, and Speed. Higher 
 
 Unique passive abilities are intended to give familiar characters their own identity: Naruto's Shadow Clones, Goku's Super Saiyan, or Light's Death Note, for example. At least one member of the starting team is guaranteed to have a listed passive, provided the imported pool contains an eligible character.
 
-Team rolls, saved base stats, and ability descriptions are available to try. Idle combat and ability effects are still planned; the descriptions currently serve as previews. Account sign-in and cross-device saves are not available yet.
+Team rolls, saved base stats, and 5v5 idle battles are available to try. Speed fills each unit's ATB bar; a full bar triggers an attack against a random living enemy. Damage uses 25 × (2 × Attack) / (Attack + Defense). Battles are tuned toward 20–40 seconds on average, with timing and HP scaling kept separate from saved base stats. Passive ability effects are still planned; their descriptions currently serve as previews. Account sign-in and cross-device saves are not available yet.
 
 ![Jobber Journeys](https://i.imgur.com/1E2iTf0.png)
 
@@ -125,3 +127,4 @@ npm test
 ```
 
 Character lists come from [MyAnimeList](https://myanimelist.net/), cast data from [Tenrai](https://api.tenrai.org/), and powerscaling tiers from [VS Battles Wiki](https://vsbattles.fandom.com/). Import and lookup availability depend on those services. Failed imports can be resumed without discarding characters already collected.
+
