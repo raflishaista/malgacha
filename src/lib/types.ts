@@ -2,13 +2,15 @@ export type MediaKind = 'anime' | 'manga';
 export type Title = { id: number; kind: MediaKind; name: string; score?: number | null; status: string };
 export type Character = { id: number; name: string; image: string | null; favorites?: number | null; url: string };
 export type PoolCharacter = Character & { titles: Title[]; power?: import('./power').Power };
-export type JourneyCharacter = PoolCharacter & { instanceId: string; baseStats: import('./stats').BaseStats; statRarity: import('./stats').Rarity };
+export type JourneyCharacter = PoolCharacter & { instanceId: string; baseStats: import('./stats').BaseStats; statRarity: import('./stats').Rarity; rarityOverride?: import('./stats').Rarity; boss?: boolean; empty?: boolean; equipment?: import('./items').ItemInstance[]; permanentBoosts?: Partial<import('./stats').BaseStats>; extraAbilities?: number[] };
 export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'partial' | 'error' | 'cancelled';
 export type Job = {
   id: string;
   username: string;
   scope?: string;
   arenaWins?: number;
+  inventory?: import('./items').ItemInstance[];
+  itemReward?: { id: string; choices: import('./items').ItemId[] };
   starterTeam?: (PoolCharacter | JourneyCharacter)[];
   encounter?: { teams: JourneyCharacter[][]; result?: { left: number; right: number; mode?: 'idle' | 'clout'; winner?: 'left' | 'right' | 'draw' }; replay?: import('./autobattle').BattleReplay; rewardUsed?: boolean };
   demo: boolean;

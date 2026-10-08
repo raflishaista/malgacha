@@ -30,6 +30,54 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('persists one boss item reward, atomically claims it, and keeps inventory across reloads', async () => {
+    const store = await setup();
+    const providers = { lists: vi.fn(async () => []), cast: vi.fn(async () => []) };
+    const engine = new Engine(store, providers, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    const saved = (await store.getJob(job.id))!;
+    saved.arenaWins = 9;
+    saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 10000, attack: 10000, defense: 10000, speed: 10000 } }));
+    await store.saveJob(saved);
+    await engine.journeyOpponents(job.id);
+    const fight = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(fight.itemReward!.choices).toHaveLength(3);
+    expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).itemReward).toEqual(fight.itemReward);
+    await expect(engine.journeyOpponents(job.id)).rejects.toThrow('Choose your boss reward');
+    const action = { action: 'claim' as const, item: fight.itemReward!.choices[0], reward: fight.itemReward!.id };
+    const claims = await Promise.allSettled([engine.journeyInventory(job.id, action), engine.journeyInventory(job.id, action)]);
+    expect(claims.filter(c => c.status === 'fulfilled')).toHaveLength(1);
+    const restarted = new Engine(store, providers, 0);
+    const inventory = await restarted.journeyInventory(job.id);
+    expect(inventory.inventory).toHaveLength(1);
+    expect(inventory.itemReward).toBeNull();
+    await restarted.journeyOpponents(job.id);
+    expect((await restarted.journeyInventory(job.id)).inventory).toEqual(inventory.inventory);
+  });
+  it('fills empty slots with the victory reward and saves equipped items without rerolling base stats', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    const saved = (await store.getJob(job.id))!;
+    saved.inventory = [{ instanceId: 'sword', itemId: 'nichirin' }];
+    await store.saveJob(saved);
+    await engine.journeyInventory(job.id, { action: 'equip', item: 'sword', target: team[0].instanceId });
+    const equipped = await engine.journeyTeam(job.id);
+    expect(equipped[0].baseStats).toEqual(team[0].baseStats);
+    expect(equipped[0].equipment).toHaveLength(1);
+    const latest = (await store.getJob(job.id))!;
+    latest.starterTeam = equipped;
+    latest.starterTeam[1] = { ...equipped[1], empty: true, id: 0, baseStats: { hp: 0, attack: 0, defense: 0, speed: 0 } };
+    latest.encounter = { teams: [team], result: { left: 5, right: 0, winner: 'left', mode: 'idle' } };
+    await store.saveJob(latest);
+    const replaced = await engine.journeyBattle(job.id, undefined, equipped[1].instanceId);
+    expect('empty' in replaced.characters[1]).toBe(false);
+    expect(replaced.characters[0]).toEqual(equipped[0]);
+  });
   it('increments arena floors once per idle victory and persists across reloads', async () => {
     const store = await setup();
     const providers = { lists: vi.fn(async () => []), cast: vi.fn(async () => []) };

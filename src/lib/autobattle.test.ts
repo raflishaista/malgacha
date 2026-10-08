@@ -38,7 +38,8 @@ it('averages 20–40 seconds across 300 mixed-rarity battles', () => {
   expect(average).toBeGreaterThanOrEqual(20);
   expect(average).toBeLessThanOrEqual(40);
 });
-it('rejects incomplete teams', () => expect(() => simulateBattle(team().slice(1), team())).toThrow('five'));
+it('rejects a completely empty team', () => expect(() => simulateBattle([], team())).toThrow('1–7'));
+it('allows a smaller team after a permanent death', () => expect(simulateBattle(team().slice(1), team()).leftCount).toBe(4));
 
 function fixedTeams() {
   return [team(), team()].map(side => side.map(c => ({ ...c, baseStats: { hp: 500, attack: 125, defense: 125, speed: 125 } })));

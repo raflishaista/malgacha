@@ -86,7 +86,7 @@
   {
     "characterId": 87275,
     "characterName": "Kaneki, Ken",
-    "title": "Kakuja",
+    "title": "I am- a ghoul.",
     "description": "Whenever another unit dies, heals 15% of maximum HP and gains +5 Attack for the rest of the battle."
   },
   {
@@ -129,7 +129,7 @@
     "characterId": 175198,
     "characterName": "Ryoumen, Sukuna",
     "title": "Malevolent Shrine",
-    "description": "Once per battle, deals rapid attacks to all of the units on the enemy team when activated."
+    "description": "Once per battle, charges a separate gauge for 8 seconds, then unleashes five rapid attacks against all living enemies."
   },
   {
     "characterId": 109929,
@@ -147,7 +147,7 @@
     "characterId": 170732,
     "characterName": "Denji",
     "title": "Chainsaw Heart",
-    "description": "After dying, revives when another unit is killed."
+    "description": "After dying, revives with 15% of maximum HP when another unit is killed."
   },
   {
     "characterId": 1,
@@ -219,7 +219,7 @@
     "characterId": 16412,
     "characterName": "Endou, Mamoru",
     "title": "God Hand",
-    "description": "Draws enemy attacks to this unit and reduces incoming damage."
+    "description": "Has Taunt, drawing single-target enemy attacks, and takes 25% less incoming damage."
   },
   {
     "characterId": 177491,
@@ -243,13 +243,13 @@
     "characterId": 196899,
     "characterName": "Takakura, Ken",
     "title": "Turbo Granny",
-    "description": "For the first few moments of a battle, this unit gets a boost on Speed."
+    "description": "Doubles Speed for the first 10 seconds of battle."
   },
   {
     "characterId": 22036,
     "characterName": "Araragi, Koyomi",
     "title": "Koyomi Vamp",
-    "description": "Periodically heals a percentage of HP."
+    "description": "Heals 10% of maximum HP every 4 seconds."
   },
   {
     "characterId": 2511,
@@ -261,7 +261,7 @@
     "characterId": 134263,
     "characterName": "Donato, Marcille",
     "title": "Forbidden Magic",
-    "description": "Revives an ally after they die."
+    "description": "Once per battle, revives the first fallen ally at full HP."
   },
   {
     "characterId": 117921,
@@ -321,7 +321,7 @@
     "characterId": 434,
     "characterName": "Onizuka, Eikichi",
     "title": "Driver’s High",
-    "description": "Increases allied units’ stats by a set amount."
+    "description": "Increases other allies’ stats by 10% while alive."
   },
   {
     "characterId": 2867,
@@ -363,7 +363,7 @@
     "characterId": 135879,
     "characterName": "Toga, Himiko",
     "title": "Transform",
-    "description": "After attacking an unit that has an passive ability, gains that unit's passive."
+    "description": "After attacking an unit that has an passive ability, gains that unit's passive, and appearance."
   },
   {
     "characterId": 65523,
@@ -376,5 +376,11 @@
     "characterName": "Kumagawa, Misogi",
     "title": "Book Maker",
     "description": "This unit's attack can periodically debuff enemies."
+  },
+  {
+    "characterId": 171437,
+    "characterName": "Gabimaru",
+    "title": "Ninpo: Ascetic Blaze",
+    "description": "Attacks inflict Burn for 6 seconds: 3% of maximum HP each second. Reapplication refreshes its duration."
   }
 ]

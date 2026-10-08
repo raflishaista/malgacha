@@ -1,5 +1,8 @@
+import { applyInventoryAction, inventoryView, randomPoolUnit, type InventoryAction } from './inventory';
+import { rewardChoices } from '../items';
 import { starterTeam, opponentTeams } from '../journeys';
 import { simulateBattle } from '../autobattle';
+import { isBossFloor, rollBoss } from '../bosses';
 import { generateBaseStats } from '../stats';
 import { rarityFor } from '../rarity';
 import type { JourneyCharacter } from '../types';
@@ -81,7 +84,15 @@ export class Engine {
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
       if (!job || job.scope !== 'journeys' || job.state !== 'complete' || !job.starterTeam) throw new Error('Roll your starting team before departing.');
+      if (job.itemReward) throw new Error('Choose your boss reward before continuing.');
+      if (!job.starterTeam.some(c => !('empty' in c && c.empty))) throw new Error('Your team is empty. Use the testing team reroll to continue.');
       const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+      if (isBossFloor(job.arenaWins ?? 0)) {
+        const teams = [[rollBoss(randomUUID(), random)]];
+        job.encounter = { teams };
+        await this.store.saveJob(job);
+        return teams;
+      }
       const teams = opponentTeams(Object.values(job.pool), random).map(team => team.map(character => {
         const statRarity = rarityFor(character.favorites) ?? 'N';
         return { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, random) };
@@ -104,6 +115,11 @@ export class Engine {
         const statRarity = rarityFor(character.favorites) ?? 'N';
         return { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, random) };
       });
+      if (reroll) {
+        if (job.itemReward) throw new Error('Choose your boss reward before rerolling.');
+        const extra = (job.inventory ?? []).filter(i => i.itemId === 'merry' || i.itemId === 'sunny').length;
+        for (let i = 0; i < extra; i++) team.push(randomPoolUnit(job, random));
+      }
       job.starterTeam = team;
       if (reroll) delete job.encounter;
       await this.store.saveJob(job);
@@ -130,17 +146,33 @@ export class Engine {
       } else {
         if (!Number.isInteger(opponent) || opponent! < 0 || opponent! >= encounter.teams.length) throw new Error('Choose an opponent.');
         if (!encounter.result) {
+          if (encounter.teams[opponent!].some(c => c.boss)) mode = 'idle';
           if (mode === 'idle') {
             encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32);
             const { left, right, winner } = encounter.replay;
             encounter.replay.floor = job.arenaWins ?? 0;
-            if (winner === 'left') job.arenaWins = (job.arenaWins ?? 0) + 1;
+            if (winner === 'left') {
+              job.arenaWins = (job.arenaWins ?? 0) + 1;
+              if (encounter.teams[opponent!].some(c => c.boss)) job.itemReward = { id: randomUUID(), choices: rewardChoices(job.inventory ?? [], () => randomInt(0, 2 ** 32) / 2 ** 32) };
+            }
             encounter.result = { left, right, winner, mode };
           } else encounter.result = { left: favoriteTotal(job.starterTeam), right: favoriteTotal(encounter.teams[opponent!]) };
         }
       }
       await this.store.saveJob(job);
-      return { result: encounter.result, replay: encounter.replay, arenaWins: job.arenaWins ?? 0, characters: job.starterTeam, rewardUsed: !!encounter.rewardUsed };
+      return { result: encounter.result, replay: encounter.replay, arenaWins: job.arenaWins ?? 0, inventory: job.inventory ?? [], itemReward: job.itemReward ?? null, characters: job.starterTeam, rewardUsed: !!encounter.rewardUsed };
+    });
+  }
+  async journeyInventory(id: string, action?: InventoryAction) {
+    await this.init();
+    return this.serialize(async () => {
+      const job = await this.store.getJob(id);
+      if (!job || job.scope !== 'journeys') throw new Error('Journey not found.');
+      if (action) {
+        applyInventoryAction(job, action, () => randomInt(0, 2 ** 32) / 2 ** 32);
+        await this.store.saveJob(job);
+      }
+      return inventoryView(job);
     });
   }
   async cancel(id: string) {

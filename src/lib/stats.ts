@@ -16,11 +16,14 @@ export const statTotal = (stats: BaseStats) => STAT_KEYS.reduce((sum, key) => su
 
 /** Bounded weighted allocation, no rejection sampling. Shuffle removes assignment-order bias. */
 export function generateBaseStats(rarity: Rarity, random = Math.random): BaseStats {
-  const { bst, min, max } = STAT_RULES[rarity];
-  if (4 * min > bst || 4 * max < bst) throw new Error('Infeasible stat configuration.');
+  const values = distributeStats(STAT_RULES[rarity], 4, random);
+  return { hp: values[0], attack: values[1], defense: values[2], speed: values[3] };
+}
+export function distributeStats({ bst, min, max }: { bst: number; min: number; max: number }, count: number, random = Math.random): number[] {
+  if (count * min > bst || count * max < bst) throw new Error('Infeasible stat configuration.');
   let remaining = bst;
   const values: number[] = [];
-  for (let slots = 4; slots > 0; slots--) {
+  for (let slots = count; slots > 0; slots--) {
     const low = Math.max(min, remaining - (slots - 1) * max);
     const high = Math.min(max, remaining - (slots - 1) * min);
     const center = remaining / slots;
@@ -39,5 +42,5 @@ export function generateBaseStats(rarity: Rarity, random = Math.random): BaseSta
     const j = Math.floor(random() * (i + 1));
     [values[i], values[j]] = [values[j], values[i]];
   }
-  return { hp: values[0], attack: values[1], defense: values[2], speed: values[3] };
+  return values;
 }

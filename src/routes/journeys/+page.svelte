@@ -70,6 +70,7 @@
   <SiteHeader configured={data.configured} active="journeys" />
   <main id="journey">
     <div class="intro"><h1>Jobber Journeys</h1><p>Import your collection and draw a starting team of five. At least one character will have a passive ability.</p></div>
+    <details class="import-settings" open={!team.length}><summary>Collection settings</summary>
     <form onsubmit={(event) => { event.preventDefault(); void start(); }}>
       <label for="journey-username">MyAnimeList username or profile URL</label>
       <div class="journey-form"><input id="journey-username" bind:value={username} required disabled={busy || working} /><button class="primary" disabled={busy || working || !data.configured}>Import & roll</button><button type="button" class="secondary" disabled={busy || working} onclick={() => start(true)}>Use demo</button></div>
@@ -78,9 +79,10 @@
     {#if job}<section class="journey-progress" aria-live="polite"><p>{job.message}</p><p>{job.processed} / {job.total} titles · {job.uniqueCharacters} unique characters{job.failed ? ` · ${job.failed} failed titles` : ''}</p></section>{/if}
     {#if working}<button class="secondary" disabled={busy} onclick={() => action('cancel')}>Cancel import</button>{/if}
     {#if job && ['partial', 'error', 'cancelled'].includes(job.state)}<p>The import must finish before your team is drawn.</p><button class="secondary" disabled={busy} onclick={() => action('retry')}>Resume import</button>{/if}
+    </details>
     {#if error}<p role="alert" class="journey-error">{error}</p>{#if job?.state === 'complete' && !team.length}<button class="secondary" disabled={busy} onclick={() => action('roll')}>Retry team draw</button>{/if}{/if}
     {#if team.length}
-      <section class="journey-team"><h2>Your starting team</h2><button class="secondary" disabled={busy || polling || working} onclick={() => action('reroll')}>Reroll team (testing)</button><p class="muted">Hover over a character with an ability, or tap its ability title to read it. Autobattles use rolled base stats. Black Flash, The World, Kakuja, and Rumbling are active in autobattles; other abilities remain previews.</p>{#key team}{#if job}<JourneyEncounter {team} jobId={job.id} />{/if}{/key}<p class="muted">This team is saved with this import. This browser remembers it; account sign-in is not available yet.</p></section>
+      <section class="journey-team"><h2>Your starting team</h2><p class="muted">Hover over a character with an ability, or tap its ability title to read it. Autobattles use rolled base stats. Selected passives are active in autobattles, including Burn, healing, revives, Taunt, and stat buffs. Other abilities remain previews.</p>{#key team}{#if job}<JourneyEncounter {team} jobId={job.id} onreroll={() => action('reroll')} parentBusy={busy || polling || working} />{/if}{/key}<p class="muted">This team is saved with this import. This browser remembers it; account sign-in is not available yet.</p></section>
     {/if}
   </main>
 </div>
