@@ -5,7 +5,7 @@
   import { rarityFor } from '$lib/rarity';
 
 
-  let { configured, panelId = 'lottery', storageKey = 'character-roll-import', count = $bindable(5), sharedCount = false, writing = false, powerscaling = false, onteam }: { configured: boolean; panelId?: string; storageKey?: string; count?: number; sharedCount?: boolean; writing?: boolean; powerscaling?: boolean; onteam?: (team: PoolCharacter[]) => void } = $props();
+  let { configured, panelId = 'lottery', storageKey = 'character-roll-import', count = $bindable(5), sharedCount = false, writing = false, powerscaling = false, onteam, onready, locked = false, showDrawControls = true }: { configured: boolean; panelId?: string; storageKey?: string; count?: number; sharedCount?: boolean; writing?: boolean; powerscaling?: boolean; onteam?: (team: PoolCharacter[]) => void; onready?: (ready: boolean) => void; locked?: boolean; showDrawControls?: boolean } = $props();
   let username = $state('fhgeh');
   let includePlanned = $state(true);
 
@@ -18,6 +18,8 @@
   let characters = $state<PoolCharacter[]>([]);
   let busy = $state(false);
   let rolling = $state(false);
+  const canDraw = $derived(!rolling && !busy && !!job && (!writing || job.state === 'complete' && writingEligible >= count) && (popularity ? validThreshold && eligible >= (sharedCount ? count : 1) : job.uniqueCharacters >= count));
+  $effect(() => { onready?.(canDraw); });
   let shuffling = $state(false);
   let settledSlots = $state(0);
   let animationFinal: PoolCharacter[] | null = null;
@@ -124,29 +126,30 @@
     catch (cause) { error = cause instanceof Error ? cause.message : 'Cancel failed.'; }
     finally { busy = false; }
   }
-  async function roll() {
-    if (!job || rolling) return;
+  export async function roll(): Promise<PoolCharacter[] | null> {
+    if (!job || !canDraw) return null;
     rolling = true; error = ''; onteam?.([]);
     const current = generation;
     try {
       const result = await api(`/api/imports/${job.id}/roll`, { count, minFavorites: popularity ? minFavorites : null, requireFullCount: sharedCount, writing });
-      if (current !== generation) return;
+      if (current !== generation) return null;
       await revealRoll(result.characters, current, result.previews);
-      if (current !== generation) return;
+      if (current !== generation) return null;
       rollNumber++;
       if (powerscaling) {
         rollNote = 'Checking VS Battles tiers… First-time lookups may take a while.';
         const jobId = job.id;
         for (const character of characters) {
-          if (current !== generation) return;
+          if (current !== generation) return null;
           const power = await api('/api/imports/' + jobId + '/power', { characterId: character.id }).catch(() => ({ tier: null, status: 'unavailable' as const, checkedAt: new Date().toISOString() }));
-          if (current !== generation) return;
+          if (current !== generation) return null;
           characters = characters.map((c) => c.id === character.id ? { ...c, power } : c);
         }
       }
       onteam?.(characters);
       rollNote = `${result.partial ? 'Early roll' : 'Full-pool roll'} · sampled from ${result.poolSize.toLocaleString()} unique characters${popularity ? ` with at least ${minFavorites} favorites` : ''}${result.characters.length < count ? ` · only ${result.characters.length} qualify` : ''}`;
-    } catch (cause) { error = cause instanceof Error ? cause.message : 'Could not roll.'; }
+      return characters;
+    } catch (cause) { error = cause instanceof Error ? cause.message : 'Could not roll.'; return null; }
     finally { rolling = false; }
   }
   onMount(() => {
@@ -162,6 +165,7 @@
     return () => { disposed = true; ++generation; stopAnimation(); clearInterval(timer); };
   });
 </script>
+    <fieldset class="panel-lock" disabled={locked}>
     <div class="workspace">
       <section class="collection" id={panelId + '-collection'} aria-labelledby={panelId + '-collection-heading'}>
         <h2 id={panelId + '-collection-heading'}><span class="section-number">01</span> Import a collection</h2>
@@ -211,10 +215,10 @@
           {#if job?.unknownFavorites}<p class="roll-help">{job.unknownFavorites} characters have no saved favorite count and are excluded. Import the profile again to refresh older data.</p>{/if}
         {/if}
         {#if writing}<p class="roll-help">{writingEligible} characters have eligible rated sources. A completed import and {count} eligible characters are required. Re-import older profiles to fetch series ratings.</p>{/if}
-        <div class="roll-controls">
+        {#if showDrawControls}<div class="roll-controls">
           {#if !sharedCount}<div><label for={panelId + '-count'}>Characters per draw</label><select id={panelId + '-count'} bind:value={count}>{#each [5, 6, 7, 8, 9, 10] as size}<option value={size}>{size} characters</option>{/each}</select></div>{/if}
-          <button class="primary" onclick={roll} disabled={rolling || busy || !job || (writing && (job.state !== 'complete' || writingEligible < count)) || (popularity ? !validThreshold || eligible < (sharedCount ? count : 1) : job.uniqueCharacters < count)}>{rolling ? 'Drawing…' : 'Draw characters'}</button>
-        </div>
+          <button class="primary" onclick={roll} disabled={locked || !canDraw}>{rolling ? 'Drawing…' : 'Draw characters'}</button>
+        </div>{/if}
         <p class="roll-help">{!popularity && job && job.uniqueCharacters < count ? 'Available once ' + count + ' unique characters are ready.' : working ? 'Early draws use only the characters collected so far.' : ''}</p>
         </div>
       </section>
@@ -248,3 +252,6 @@
         </ol>
       {:else}<p class="empty-results">Drawn characters will appear here.</p>{/if}
     </section>
+
+</fieldset>
+<style>.panel-lock { border: 0; padding: 0; margin: 0; min-width: 0; }</style>

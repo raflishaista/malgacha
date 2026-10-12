@@ -1,0 +1,54 @@
+{
+  "events": {
+    "creature": {
+      "title": "A Small White Creature Appears",
+      "text": "Would you like to be a magical girl?"
+    },
+    "marine": {
+      "title": "Marine Capture",
+      "text": "A group of Marines are holding someone in public, but you don’t know who. Will you save them?"
+    }
+  },
+  "rules": {
+    "chance": 0.15,
+    "soulGem": 0.15,
+    "witch": 0.1,
+    "marine": 0.05
+  },
+  "marineIds": [
+    13018,
+    8064,
+    22687,
+    21093,
+    2752,
+    82259,
+    179678,
+    2753,
+    2750,
+    12361,
+    12362,
+    21558,
+    27203,
+    5677,
+    6183,
+    11396,
+    20289,
+    20091,
+    9333,
+    67347,
+    21804
+  ],
+  "captiveIds": [
+    40,
+    62,
+    2072,
+    4883,
+    10101
+  ],
+  "keywords": {
+    "TAUNT": "Enemy attacks target this unit.",
+    "SOUL GEM": "Gain 15% Attack, Defense, and Speed. When this unit dies, it becomes a Witch that attacks everyone. Defeat the Witch to win.",
+    "MARINE SOLIDARITY": "All stats are increased by 5%.",
+    "WITCH": "Attacks allies and enemies. Both teams can attack the Witch. It must be defeated before either team can win."
+  }
+}

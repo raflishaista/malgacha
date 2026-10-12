@@ -17,7 +17,7 @@ export function randomPoolUnit(job: Job, random = Math.random, ur = false): Jour
   return newUnit(pool[Math.floor(random() * pool.length)], random);
 }
 export type InventoryAction = { action: 'claim' | 'equip' | 'use'; item?: string; target?: string; reward?: string };
-export function inventoryView(job: Job) { return { inventory: job.inventory ?? [], itemReward: job.itemReward ?? null, characters: job.starterTeam ?? [] }; }
+export function inventoryView(job: Job) { return { encounter: job.encounter ?? null, lives: job.lives ?? 3, arenaWins: job.arenaWins ?? 0, inventory: job.inventory ?? [], itemReward: job.itemReward ?? null, characters: job.starterTeam ?? [] }; }
 export function applyInventoryAction(job: Job, action: InventoryAction, random = Math.random) {
   const team = job.starterTeam as JourneyCharacter[];
   if (!team) throw new Error('Roll a team first.');

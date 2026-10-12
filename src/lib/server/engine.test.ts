@@ -1,3 +1,4 @@
+vi.mock('../events', async (importOriginal) => ({ ...await importOriginal<typeof import('../events')>(), rollEvents: () => [null, null, null] }));
 import { mkdtemp, rm } from 'node:fs/promises';
 import { join, resolve, dirname, basename } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -30,6 +31,54 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('deducts lives once per loss and resets the entire run on the third loss', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    for (let loss = 1; loss <= 3; loss++) {
+      const saved = (await store.getJob(job.id))!;
+      saved.arenaWins = 12; saved.inventory = [{ instanceId: 'boat', itemId: 'merry' }];
+      saved.starterTeam = team.map(c => ({ ...c, favorites: 0, equipment: [{ instanceId: 'sword', itemId: 'nichirin' }] }));
+      saved.encounter = { teams: [team.map(c => ({ ...c, favorites: 999999 }))] };
+      await store.saveJob(saved);
+      const fight = await engine.journeyBattle(job.id, 0, undefined, 'clout');
+      expect(fight.lives).toBe(loss === 3 ? 3 : 3 - loss);
+      expect(fight.gameOver).toBe(loss === 3);
+      const retry = await engine.journeyBattle(job.id, 0, undefined, 'clout');
+      expect(retry.characters).toEqual(fight.characters); expect(retry.lives).toBe(fight.lives);
+    }
+    const saved = (await store.getJob(job.id))!;
+    expect(saved.arenaWins).toBe(0); expect(saved.inventory).toEqual([]);
+    expect(saved.starterTeam).toHaveLength(5);
+    expect(saved.starterTeam!.every(c => !('equipment' in c))).toBe(true);
+    expect(saved.starterTeam!.some(c => 'instanceId' in c && team.some(old => old.instanceId === c.instanceId))).toBe(false);
+    expect((await engine.journeyInventory(job.id)).lives).toBe(3);
+    await engine.journeyReset(job.id);
+    expect((await store.getJob(job.id))!.encounter).toBeUndefined();
+  });
+  it('awards an item after a non-boss fifth floor, keeps draws free, and clears pending rewards on reset', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    const saved = (await store.getJob(job.id))!;
+    saved.lives = 2; saved.arenaWins = 4;
+    saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 10000, attack: 10000, defense: 10000, speed: 10000 } }));
+    saved.encounter = { teams: [team] };
+    await store.saveJob(saved);
+    const fight = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(fight.arenaWins).toBe(5); expect(fight.itemReward!.choices).toHaveLength(3); expect(fight.lives).toBe(2);
+    expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).itemReward).toEqual(fight.itemReward);
+    const reset = await engine.journeyReset(job.id);
+    expect(reset.itemReward).toBeNull(); expect(reset.arenaWins).toBe(0); expect(reset.lives).toBe(3);
+    const fresh = (await store.getJob(job.id))!;
+    fresh.encounter = { teams: [fresh.starterTeam as typeof team] };
+    await store.saveJob(fresh);
+    expect((await engine.journeyBattle(job.id, 0, undefined, 'clout')).lives).toBe(3);
+  });
   it('persists one boss item reward, atomically claims it, and keeps inventory across reloads', async () => {
     const store = await setup();
     const providers = { lists: vi.fn(async () => []), cast: vi.fn(async () => []) };
@@ -41,11 +90,14 @@ describe('durable imports', () => {
     saved.arenaWins = 9;
     saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 10000, attack: 10000, defense: 10000, speed: 10000 } }));
     await store.saveJob(saved);
-    await engine.journeyOpponents(job.id);
+    const bossEncounter = await engine.journeyOpponents(job.id);
+    expect(bossEncounter.stage).toBeUndefined();
+    expect((await store.getJob(job.id))!.encounter!.stage).toBeUndefined();
     const fight = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(fight.replay!.stage).toBeUndefined();
     expect(fight.itemReward!.choices).toHaveLength(3);
     expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).itemReward).toEqual(fight.itemReward);
-    await expect(engine.journeyOpponents(job.id)).rejects.toThrow('Choose your boss reward');
+    await expect(engine.journeyOpponents(job.id)).rejects.toThrow('Choose your item reward');
     const action = { action: 'claim' as const, item: fight.itemReward!.choices[0], reward: fight.itemReward!.id };
     const claims = await Promise.allSettled([engine.journeyInventory(job.id, action), engine.journeyInventory(job.id, action)]);
     expect(claims.filter(c => c.status === 'fulfilled')).toHaveLength(1);
@@ -108,8 +160,11 @@ describe('durable imports', () => {
     const job = await engine.create('demo', true, true, 'journeys');
     await finished(store, job.id);
     const team = await engine.journeyTeam(job.id);
-    await engine.journeyOpponents(job.id);
+    const encounter = await engine.journeyOpponents(job.id);
+    expect(encounter.stage).toBeDefined();
+    expect((await store.getJob(job.id))!.encounter!.stage).toBe(encounter.stage);
     const battle = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(battle.replay!.stage).toBe(encounter.stage);
     expect(battle.replay!.events.length).toBeGreaterThan(0);
     expect(battle.result!.mode).toBe('idle');
     expect(await engine.journeyBattle(job.id, 0, undefined, 'idle')).toEqual(battle);
@@ -148,7 +203,7 @@ describe('durable imports', () => {
     const restarted = new Engine(store, providers, 0);
     expect(await restarted.journeyTeam(job.id)).toEqual(first);
     expect((await store.getJob(job.id))!.starterTeam).toEqual(first);
-    const opponents = await restarted.journeyOpponents(job.id);
+    const { teams: opponents } = await restarted.journeyOpponents(job.id);
     expect(opponents).toHaveLength(3);
     expect(opponents.every(team => team.length === 5 && team.every(c => c.instanceId && c.baseStats))).toBe(true);
     expect(await restarted.journeyTeam(job.id)).toEqual(first);

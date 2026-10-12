@@ -1,0 +1,71 @@
+{
+  "stages": {
+    "punk": {
+      "name": "Punk Hazard",
+      "description": "One side is continuously burned; the other is continuously chilled.",
+      "effect": true
+    },
+    "budokai": {
+      "name": "Tenkaichi Budokai",
+      "description": "The first five slots fight simultaneous one-on-one duels. Win three duels to win.",
+      "effect": true
+    },
+    "dangai": {
+      "name": "Dangai",
+      "description": "The Kōtotsu sweeps through every five seconds, dealing 20% of maximum HP to every unit.",
+      "effect": true
+    },
+    "valley": {
+      "name": "Valley of the End",
+      "description": "Each team’s strongest member, measured by modified starting stats, fights a deciding duel.",
+      "effect": true
+    },
+    "colosseum": {
+      "name": "Colosseum",
+      "description": "After six seconds, Silver Chariot Requiem shuffles positions within and between teams. Original teams return after battle.",
+      "effect": true
+    },
+    "hope": {
+      "name": "Hope’s Peak Academy",
+      "description": "The first unit to kill another unit is immediately executed.",
+      "effect": true
+    },
+    "itomori": {
+      "name": "Itomori",
+      "description": "Tiamat strikes after 20 seconds. The team with the greater sum of remaining HP percentages wins. Ties favor your team.",
+      "effect": true
+    },
+    "shuchiin": {
+      "name": "Shuchiin Academy",
+      "description": "No effect.",
+      "effect": false
+    },
+    "dusseldorf": {
+      "name": "Düsseldorf",
+      "description": "No effect.",
+      "effect": false
+    },
+    "ishigami": {
+      "name": "Ishigami Village",
+      "description": "No effect.",
+      "effect": false
+    },
+    "tracen": {
+      "name": "Tracen Academy",
+      "description": "No effect.",
+      "effect": false
+    },
+    "tootsuki": {
+      "name": "Tootsuki Culinary Academy",
+      "description": "No effect.",
+      "effect": false
+    }
+  },
+  "rules": {
+    "sweepSeconds": 5,
+    "sweepDamage": 0.2,
+    "swapSeconds": 6,
+    "impactSeconds": 20,
+    "effectChance": 0.5
+  }
+}

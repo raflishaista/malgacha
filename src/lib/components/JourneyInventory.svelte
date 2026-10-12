@@ -55,7 +55,7 @@
   .selection { margin: 18px 0; padding: 12px; border-left: 2px solid var(--accent); }
   .inventory-team { display: flex; flex-wrap: wrap; gap: 16px; margin: 20px 0; }
   .unit-target { width: 110px; padding: 8px; display: grid; gap: 7px; text-align: left; }
-  .unit-portrait { display: block; position: relative; height: 100px; background: #181818; }
-  img { width: 100%; height: 100%; object-fit: cover; } small { color: var(--muted); }
+  .unit-portrait { display: block; position: relative; width: 100%; aspect-ratio: var(--character-portrait-ratio); background: #181818; }
+  img { display: block; position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; } small { color: var(--muted); }
   .used { color: #ffb078; animation: used-fade 2s forwards; } @keyframes used-fade { to { opacity: 0; } }
 </style>

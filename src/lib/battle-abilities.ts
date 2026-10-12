@@ -1,3 +1,4 @@
+import { keywordBonuses } from './events';
 import catalog from './data/abilities.json';
 import type { BaseStats } from './stats';
 import type { JourneyCharacter } from './types';
@@ -6,15 +7,21 @@ export const ABILITY_RULES = {
   vampCooldown: 4, vampHeal: 0.1, turboDuration: 10, turboMultiplier: 2, godHandReduction: 0.25,
   driversHigh: 0.1, chainsawHeal: 0.15, shrineCooldown: 8, shrineHits: 5, shrineInterval: 0.2
 };
-export const STATUS_RULES = { burn: { duration: 6, interval: 1, hpFraction: 0.03, label: 'BURN', description: 'This unit takes 3% of maximum HP as damage each second for 6 seconds. Reapplication refreshes the duration; it does not stack.' } };
-export type Keyword = 'TAUNT';
+export const STATUS_RULES = { chill: { duration: 6, rate: 0.75, label: 'CHILL', description: 'ATB fills 25% slower for 6 seconds. Reapplication refreshes the duration; it does not stack.' }, burn: { duration: 6, interval: 1, hpFraction: 0.03, label: 'BURN', description: 'This unit takes 3% of maximum HP as damage each second for 6 seconds. Reapplication refreshes the duration; it does not stack.' } };
+export type Keyword = 'TAUNT' | 'SOUL GEM' | 'MARINE SOLIDARITY' | 'WITCH';
 export const IMPLEMENTED_ABILITIES = [163847, 4004, 87275, 40882, 171437, 22036, 196899, 16412, 134263, 434, 170732, 175198];
-export const abilityIds = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'empty' | 'extraAbilities'>): number[] => unit.boss || unit.empty ? [] : [...new Set([...(catalog.some(a => a.characterId === unit.id) ? [unit.id] : []), ...(unit.extraAbilities ?? [])])];
-export const hasAbility = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'empty' | 'extraAbilities'>, id: number) => abilityIds(unit).includes(id);
-export const keywordsFor = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'empty' | 'extraAbilities'>): Keyword[] => hasAbility(unit, 16412) ? ['TAUNT'] : [];
+export const abilityIds = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'empty' | 'extraAbilities' | 'witch'>): number[] => unit.boss || unit.empty || unit.witch ? [] : [...new Set([...(catalog.some(a => a.characterId === unit.id) ? [unit.id] : []), ...(unit.extraAbilities ?? [])])];
+export const hasAbility = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'empty' | 'extraAbilities' | 'witch'>, id: number) => abilityIds(unit).includes(id);
+export const keywordsFor = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'empty' | 'extraAbilities' | 'witch' | 'soulGem' | 'marine'>): Keyword[] => [
+  ...(hasAbility(unit, 16412) ? ['TAUNT' as const] : []),
+  ...(unit.witch ? ['WITCH' as const] : unit.soulGem ? ['SOUL GEM' as const] : []),
+  ...(unit.marine ? ['MARINE SOLIDARITY' as const] : [])
+];
 export function effectiveStats(unit: JourneyCharacter, aura: boolean, time: number, attackBonus = 0, equipment: BaseStats = { hp: 0, attack: 0, defense: 0, speed: 0 }): BaseStats {
   const base = { ...unit.baseStats };
   for (const key of ['hp', 'attack', 'defense', 'speed'] as const) base[key] += equipment[key] + (unit.permanentBoosts?.[key] ?? 0);
+  const keywords = keywordBonuses(unit, equipment);
+  for (const key of ['hp', 'attack', 'defense', 'speed'] as const) base[key] = (base[key] + keywords[key]) * (unit.witch ? 1.1 : 1);
   const multiplier = aura ? 1 + ABILITY_RULES.driversHigh : 1;
   return { hp: base.hp * multiplier, attack: (base.attack + attackBonus) * multiplier,
     defense: base.defense * multiplier,
