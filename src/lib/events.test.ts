@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { CAPTIVE_IDS, MARINE_IDS, eventCharacter, keywordBonuses, rollEvents } from './events';
+import { CAPTIVE_IDS, MARINE_IDS, EVENT_RULES, eventCharacter, keywordBonuses, rollEvents } from './events';
 import { effectiveStats, keywordsFor } from './battle-abilities';
 import { simulateBattle } from './autobattle';
 import type { JourneyCharacter } from './types';
@@ -21,7 +21,8 @@ it('applies keyword boosts without changing saved base stats or boosting Soul Ge
   expect(keywordBonuses(unit).hp).toBe(0); expect(unit).toEqual(before);
   expect(keywordsFor(unit)).toContain('SOUL GEM');
   const marine = effectiveStats({ ...unit, soulGem: false, marine: true }, false, 0);
-  expect(marine.hp).toBe(525); expect(marine.attack).toBe(131.25);
+  expect(marine.hp).toBeCloseTo(500 * (1 + EVENT_RULES.marine));
+  expect(marine.attack).toBeCloseTo(125 * (1 + EVENT_RULES.marine));
 });
 it('transforms only once on death, attacks both sides, can be hit by both sides, and restores original roster', () => {
   const left = team(), right = team();

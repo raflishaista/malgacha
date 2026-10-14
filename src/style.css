@@ -1,3 +1,11 @@
+@font-face {
+  font-family: 'Raglan Punch';
+  src: url('/fonts/raglanpunch.otf') format('opentype');
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 :root {
   font-family: Arial, Helvetica, sans-serif;
   color: #e8e8e3;
@@ -9,6 +17,7 @@
   --line: #353035;
   --purple-line: #57305e;
   --mono: 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+  --display-font: 'Raglan Punch', Arial, Helvetica, sans-serif;
   --character-portrait-ratio: 225 / 350;
 }
 * { box-sizing: border-box; }
@@ -269,3 +278,12 @@ section { scroll-margin-top: 20px; }
 
 .boss .portrait { border: 6px solid #ed404a !important; }
 .boss-tag { color: #ed404a; font: 900 14px var(--mono); margin-left: 8px; }
+
+/* Display type stays separate from form labels, character names and metadata. */
+h1, .wordmark, .fight-button, .match-outcome strong,
+.stage h2, .boss-option h2, .arena, .event-option,
+.result strong, #reward-heading, #event-title {
+  font-family: var(--display-font);
+  font-weight: 400;
+  letter-spacing: 0;
+}

@@ -10,7 +10,7 @@
   import { onMount, tick } from 'svelte';
   import Card from './JourneyCharacter.svelte';
   import AutoBattle from './AutoBattle.svelte';
-  import type { BattleReplay } from '$lib/autobattle';
+  import type { BattleReplay } from '$lib/battle/types';
   import type { JourneyCharacter } from '$lib/types';
   import { favoriteTotal } from '$lib/match';
   let { team, jobId, onreroll, parentBusy = false }: { team: JourneyCharacter[]; jobId: string; onreroll?: () => void; parentBusy?: boolean } = $props();
@@ -21,7 +21,7 @@
   let pendingLives = 3;
   let gameOver = $state(false);
   let resetNotice = $state('');
-  let turbo = $state(false);
+  let turbo = $state(true);
   function toggleTurbo() {
     turbo = !turbo;
     try { localStorage.setItem('malgacha-turbo-mode', String(turbo)); } catch { /* Storage is optional. */ }
@@ -53,7 +53,7 @@
     finally { busy = false; }
   }
   onMount(() => {
-    try { turbo = localStorage.getItem('malgacha-turbo-mode') === 'true'; } catch { /* Storage is optional. */ }
+    try { turbo = localStorage.getItem('malgacha-turbo-mode') !== 'false'; } catch { /* Storage is optional. */ }
     void inventoryAction();
   });
   let opponents = $state<JourneyCharacter[][]>([]);

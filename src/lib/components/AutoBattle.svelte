@@ -2,10 +2,13 @@
   import KeywordTags from './KeywordTags.svelte';
   import StageBanner from './StageBanner.svelte';
   import EquipmentIcons from './EquipmentIcons.svelte';
-  import { hasAbility, STATUS_RULES } from '$lib/battle-abilities';
+  import { hasAbility } from '$lib/battle/abilities/catalog';
+  import { STATUS_RULES } from '$lib/battle/statuses';
   import { onMount, untrack } from 'svelte';
-  import { attackInterval, battleHP, activeSeconds, ABILITY_RULES, type BattleFrame, type BattleReplay } from '$lib/autobattle';
-  let { replay, onfinish, turbo = false }: { replay: BattleReplay; onfinish: () => void; turbo?: boolean } = $props();
+  import { attackInterval, battleHP, activeSeconds } from '$lib/battle/formulas';
+  import { ABILITY_RULES } from '$lib/battle/abilities/config';
+  import type { BattleFrame, BattleReplay } from '$lib/battle/types';
+  let { replay, onfinish, turbo = true }: { replay: BattleReplay; onfinish: () => void; turbo?: boolean } = $props();
   let combatFrame = $state<BattleFrame | undefined>(untrack(() => replay.frames?.[0]));
   const maximumHP = $derived(combatFrame?.maxHP ?? replay.units.map(c => battleHP(c.baseStats.hp)));
   function gauge(i: number, rumbling = false) {
@@ -43,7 +46,7 @@
           if (event.attackBonus !== undefined) attackBonus[event.attacker] = event.attackBonus;
           if (event.ability && elapsed - event.time < 1.5 && !document.hidden) floats.push({ id: index, unit: event.attacker, title: event.ability, time: elapsed });
           if (event.kind && !['rumbling', 'burn', 'shrine'].includes(event.kind)) {
-            announcement = replay.units[event.attacker].name + ' activates ' + event.ability + '.';
+            announcement = (replay.units[event.attacker]?.name ?? 'The stage') + ' activates ' + event.ability + '.';
             index++; continue;
           }
           hit[event.target] = index;

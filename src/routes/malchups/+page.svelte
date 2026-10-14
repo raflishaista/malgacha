@@ -90,11 +90,11 @@ function fight() {
 
 <section class="match-side" aria-labelledby="right-heading"><h2 class="side-heading" id="right-heading">Player 2</h2><LotteryPanelMALchups bind:this={rightPanel} onready={(ready) => rightReady = ready} locked={drawingBoth} configured={data.configured} panelId="right" storageKey="malchups-right-import" {count} sharedCount writing={mode === 'WRITINGSCALING'} powerscaling={mode === 'POWERSCALING'} onteam={(characters) => team('right', characters)} /></section>
 </div><section class="match-battle" aria-label="Battle result">
-<p class="match-hint" role="status">{drawingBoth ? mode === 'POWERSCALING' ? 'Drawing both teams and checking VS Battles tiers…' : 'Drawing both teams…' : leftReady && rightReady ? 'Draw fresh teams for both players and compare automatically.' : 'Import both profiles and make sure each pool can supply a full draw.'}</p>
+<p class="match-hint" role="status">{drawingBoth ? mode === 'POWERSCALING' ? 'Drawing both teams and checking VS Battles tiers…' : 'Drawing both teams…' : leftReady && rightReady ? '' : 'Import both profiles and make sure each pool can supply a full draw.'}</p>
 {#if drawError}<p role="alert">{drawError}</p>{/if}
 {#if ready && !drawingBoth}<button onclick={fight}>Compare current draws</button>{/if}
 {#if outcome}<div class="match-outcome" role="status"><strong>{outcome}</strong><p>Player 1: {mode === 'POWERSCALING' ? (topPower(left) ?? 'Unranked') : mode === 'WRITINGSCALING' ? leftTotal.toFixed(2) + ' rating points' : leftTotal.toLocaleString() + ' favorites'}</p><p>Player 2: {mode === 'POWERSCALING' ? (topPower(right) ?? 'Unranked') : mode === 'WRITINGSCALING' ? rightTotal.toFixed(2) + ' rating points' : rightTotal.toLocaleString() + ' favorites'}</p>{#if mode === 'CLOUTSCALING' && [...left, ...right].some((c) => c.favorites == null)}<p class="match-footnote">Unknown favorite counts count as 0.</p>{/if}</div>{/if}
 <button class="fight-button draw-fight" disabled={drawingBoth || !leftReady || !rightReady} onclick={drawAndFight}>{drawingBoth ? 'DRAWING & COMPARING…' : 'DRAW & FIGHT'}</button>
 </section></main>
-<footer><span>MALGacha / MALchups</span><p>Data: <a href="https://myanimelist.net/">MyAnimeList</a> + <a href="https://api.tenrai.org/">Tenrai</a></p></footer></div>
+<footer><span>MALGacha</span><p>Data: <a href="https://myanimelist.net/">MyAnimeList</a> + <a href="https://api.tenrai.org/">Tenrai</a></p></footer></div>
 <style>.draw-fight { width: min(440px, 100%); min-height: 76px; font-size: clamp(22px, 3vw, 32px); }</style>

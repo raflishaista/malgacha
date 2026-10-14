@@ -13,7 +13,7 @@ export type Job = {
   inventory?: import('./items').ItemInstance[];
   itemReward?: { id: string; choices: import('./items').ItemId[] };
   starterTeam?: (PoolCharacter | JourneyCharacter)[];
-  encounter?: { selected?: number; events?: (import('./events').JourneyEvent | null)[]; gameOver?: boolean; stage?: import('./stages').StageId; teams: JourneyCharacter[][]; result?: { left: number; right: number; mode?: 'idle' | 'clout'; winner?: 'left' | 'right' | 'draw' }; replay?: import('./autobattle').BattleReplay; rewardUsed?: boolean };
+  encounter?: { selected?: number; events?: (import('./events').JourneyEvent | null)[]; gameOver?: boolean; stage?: import('./stages').StageId; teams: JourneyCharacter[][]; result?: { left: number; right: number; mode?: 'idle' | 'clout'; winner?: 'left' | 'right' | 'draw' }; replay?: import('./battle/types').BattleReplay; rewardUsed?: boolean };
   demo: boolean;
   includePlanned: boolean;
   state: ImportState;

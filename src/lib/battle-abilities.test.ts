@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { simulateBattle, attackInterval } from './autobattle';
-import { applyBurn, keywordsFor } from './battle-abilities';
+import { ABILITY_RULES, applyBurn, keywordsFor } from './battle-abilities';
 import type { JourneyCharacter } from './types';
 function teams(): JourneyCharacter[][] { return [0, 1].map(side => Array.from({ length: 5 }, (_, i) => ({ id: 900000 + side * 5 + i, name: 'Unit', instanceId: String(side * 5 + i), image: null, url: '', titles: [], statRarity: 'N', baseStats: { hp: 500, attack: 125, defense: 125, speed: 125 } }))); }
 it('Burn refreshes one timer without postponing its next tick', () => {
@@ -38,7 +38,7 @@ it('God Hand attracts single-target attacks and reduces their damage', () => {
   const b = simulateBattle(t[0], t[1], () => 0);
   const hits = b.events.filter(e => !e.kind && e.attacker < 5 && e.time < 4);
   expect(hits).toHaveLength(5);
-  expect(hits.every(e => e.target === 7 && e.damage === 18.75)).toBe(true);
+  expect(hits.every(e => e.target === 7 && e.damage === 25 * (1 - ABILITY_RULES.godHandReduction))).toBe(true);
 });
 it('Marcille revives the first fallen ally once at full HP', () => {
   const t = teams(); t[1][1].id = 134263; t[1][0].baseStats.hp = 1;

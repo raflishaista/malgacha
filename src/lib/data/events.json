@@ -13,7 +13,7 @@
     "chance": 0.15,
     "soulGem": 0.15,
     "witch": 0.1,
-    "marine": 0.05
+    "marine": 0.1
   },
   "marineIds": [
     13018,
@@ -48,7 +48,7 @@
   "keywords": {
     "TAUNT": "Enemy attacks target this unit.",
     "SOUL GEM": "Gain 15% Attack, Defense, and Speed. When this unit dies, it becomes a Witch that attacks everyone. Defeat the Witch to win.",
-    "MARINE SOLIDARITY": "All stats are increased by 5%.",
+    "MARINE SOLIDARITY": "All stats are increased by 10%.",
     "WITCH": "Attacks allies and enemies. Both teams can attack the Witch. It must be defeated before either team can win."
   }
 }

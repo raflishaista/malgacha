@@ -170,6 +170,26 @@ describe('durable imports', () => {
     expect(await engine.journeyBattle(job.id, 0, undefined, 'idle')).toEqual(battle);
     expect(await engine.journeyTeam(job.id)).toEqual(team);
   });
+  it('saves an Itomori impact victory once and permits the next encounter', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id);
+    await engine.journeyOpponents(job.id);
+    const saved = (await store.getJob(job.id))!;
+    const slowTeam = team.map((c, i) => ({ ...c, id: 900000 + i, baseStats: { hp: 500, attack: 125, defense: 125, speed: 0.01 } }));
+    saved.starterTeam = slowTeam;
+    saved.encounter = { stage: 'itomori', teams: [structuredClone(slowTeam)] };
+    await store.saveJob(saved);
+    const battle = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(battle.replay!.duration).toBe(20);
+    expect(battle.result!.winner).toBe('left');
+    expect(battle.arenaWins).toBe(1);
+    expect(await engine.journeyBattle(job.id, 0, undefined, 'idle')).toEqual(battle);
+    expect((await engine.journeyOpponents(job.id)).teams).toHaveLength(3);
+    expect((await store.getJob(job.id))!.arenaWins).toBe(1);
+  });
   it('allows one saved replacement after victory, preserving the other four instances', async () => {
     const store = await setup();
     const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);

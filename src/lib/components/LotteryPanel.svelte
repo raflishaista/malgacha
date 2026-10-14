@@ -169,7 +169,7 @@
     <div class="workspace">
       <section class="collection" id={panelId + '-collection'} aria-labelledby={panelId + '-collection-heading'}>
         <h2 id={panelId + '-collection-heading'}><span class="section-number">01</span> Import a collection</h2>
-        <p class="section-description">Enter a public profile to collect its characters.</p>
+        <p class="section-description">Enter a public profile</p>
         <form onsubmit={(event) => { event.preventDefault(); void start(); }}>
           <label for={panelId + '-username'}>MAL username or profile URL</label>
           <input id={panelId + '-username'} bind:value={username} placeholder="e.g. fhgeh" required disabled={busy} autocomplete="off" />

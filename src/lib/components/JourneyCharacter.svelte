@@ -1,9 +1,9 @@
 <script lang="ts">
   import KeywordTags from './KeywordTags.svelte';
-  import { keywordBonuses } from '$lib/events';
+  import { keywordBonuses } from '$lib/battle/keywords';
   import type { JourneyCharacter } from '$lib/types';
   import { BOSSES } from '$lib/bosses';
-  import { abilityIds } from '$lib/battle-abilities';
+  import { abilityIds } from '$lib/battle/abilities/catalog';
   import EquipmentIcons from './EquipmentIcons.svelte';
   import { equipmentBonuses, emptyBoosts } from '$lib/items';
   import { rarityFor } from '$lib/rarity';

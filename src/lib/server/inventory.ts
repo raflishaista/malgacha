@@ -3,7 +3,7 @@ import type { Job, JourneyCharacter, PoolCharacter } from '../types';
 import { ITEMS, type ItemId } from '../items';
 import { generateBaseStats } from '../stats';
 import { rarityFor } from '../rarity';
-import { abilityIds, IMPLEMENTED_ABILITIES } from '../battle-abilities';
+import { abilityIds, IMPLEMENTED_ABILITIES } from '../battle/abilities';
 export function newUnit(character: PoolCharacter, random = Math.random, forceUR = false): JourneyCharacter {
   const statRarity = forceUR ? 'UR' : rarityFor(character.favorites) ?? 'N';
   return { ...character, instanceId: randomUUID(), statRarity, ...(forceUR ? { rarityOverride: 'UR' as const } : {}), baseStats: generateBaseStats(statRarity, random) };

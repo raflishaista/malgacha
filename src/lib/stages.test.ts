@@ -101,6 +101,20 @@ it('Itomori ties favor the player', () => {
   const left = team(), right = team(); [...left, ...right].forEach(c => c.baseStats.speed = 0.01);
   expect(simulateBattle(left, right, rng(), 'itomori').winner).toBe('left');
 });
+it('Itomori impact ends the battle even when a living Witch remains', () => {
+  const left = team(7), right = team();
+  [...left, ...right].forEach(c => c.baseStats.speed = 0.01);
+  left[0].soulGem = true;
+  left[0].baseStats.hp = 100;
+  right[0].baseStats.speed = 125;
+  const before = structuredClone([left, right]);
+  const replay = simulateBattle(left, right, () => 0, 'itomori');
+  expect(replay.duration).toBe(20);
+  expect(replay.winner).toBe('right');
+  expect(replay.frames!.at(-1)!.witches![0]).toBe(true);
+  expect(replay.frames!.at(-1)!.hp[0]).toBeGreaterThan(0);
+  expect([left, right]).toEqual(before);
+});
 it('all stages finish with finite state when combined with implemented abilities', () => {
   for (const stage of Object.keys(STAGES) as StageId[]) {
     const left = team(), right = team();

@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { keywordsFor } from '$lib/battle-abilities';
-  import { KEYWORD_INFO } from '$lib/events';
+  import { keywordsFor } from '$lib/battle/keywords';
+  import { KEYWORD_INFO } from '$lib/battle/keywords';
   import type { JourneyCharacter } from '$lib/types';
   let { unit }: { unit: JourneyCharacter } = $props();
 </script>

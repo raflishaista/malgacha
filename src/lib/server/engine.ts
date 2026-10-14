@@ -4,7 +4,7 @@ import { rollStage, type StageId } from '../stages';
 import { applyInventoryAction, inventoryView, newUnit, randomPoolUnit, type InventoryAction } from './inventory';
 import { rewardChoices } from '../items';
 import { starterTeam, opponentTeams } from '../journeys';
-import { simulateBattle } from '../autobattle';
+import { simulateBattle } from '../battle/engine';
 import { isBossFloor, rollBoss } from '../bosses';
 import { generateBaseStats } from '../stats';
 import { rarityFor } from '../rarity';

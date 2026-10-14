@@ -15,11 +15,5 @@ export const eventCharacter = (id: number): PoolCharacter => {
 export function rollEvents(random = Math.random): (JourneyEvent | null)[] {
   return Array.from({ length: 3 }, () => random() < EVENT_RULES.chance ? { id: random() < 0.5 ? 'creature' : 'marine', status: 'choice' } : null);
 }
-export const KEYWORD_INFO = definitions.keywords;
-export function keywordBonuses(unit: JourneyCharacter, gear = { hp: 0, attack: 0, defense: 0, speed: 0 }) {
-  return Object.fromEntries((['hp', 'attack', 'defense', 'speed'] as const).map(key => {
-    const base = unit.baseStats[key] + gear[key] + (unit.permanentBoosts?.[key] ?? 0);
-    const multiplier = (unit.soulGem && key !== 'hp' ? 1 + EVENT_RULES.soulGem : 1) * (unit.marine ? 1 + EVENT_RULES.marine : 1);
-    return [key, base * (multiplier - 1)];
-  })) as import('./stats').BaseStats;
-}
+// Compatibility exports; keyword mechanics are independent of event flows.
+export { KEYWORD_INFO, keywordBonuses } from './battle/keywords';
