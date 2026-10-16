@@ -2,6 +2,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import type { Character, Title } from '../types';
 
 export interface Providers {
+  searchCharacters?(query: string): Promise<import('../types').PoolCharacter[]>;
   lists(username: string, includePlanned: boolean, signal?: AbortSignal): Promise<Title[]>;
   cast(title: Title, signal?: AbortSignal): Promise<Character[]>;
 }
@@ -75,6 +76,13 @@ export function createProviders(clientId: () => string | undefined): Providers {
     throw new Error('Provider request failed.');
   }
   return {
+    async searchCharacters(query) {
+      const page = await request('https://api.tenrai.org/v1/characters?' + new URLSearchParams({ q: query, limit: '8' }), 'tenrai');
+      return page.data.filter((c: any) => Number.isInteger(c.mal_id) && typeof c.name === 'string').map((c: any) => ({
+        id: c.mal_id, name: c.name, image: [c.images?.webp?.image_url, c.images?.jpg?.image_url].find((url: unknown) => typeof url === 'string' && url.startsWith('https://cdn.myanimelist.net/')) ?? null,
+        favorites: typeof c.favorites === 'number' ? c.favorites : null, titles: [], url: `https://myanimelist.net/character/${c.mal_id}`
+      }));
+    },
     async lists(username, includePlanned, signal) {
       if (!clientId()) throw new Error('Add MAL_CLIENT_ID to .env and restart the server, or try the demo.');
       const titles: Title[] = [];

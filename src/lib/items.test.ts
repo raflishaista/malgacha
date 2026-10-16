@@ -10,10 +10,10 @@ function fixture(): Job {
   return { id: 'test', username: 'demo', scope: 'journeys', state: 'complete', demo: true, includePlanned: true, createdAt: '', updatedAt: '', titles: [], listed: true, done: [], failures: {}, message: '', pool: Object.fromEntries([...team, unit(175198), unit(90005)].map(c => { const { instanceId, baseStats, statRarity, ...character } = c; return [c.id, character]; })), starterTeam: team, inventory: [] };
 }
 function grant(job: Job, itemId: ItemId) { const instanceId = String(job.inventory!.length) + itemId; job.inventory!.push({ instanceId, itemId }); return instanceId; }
-it('unique relics are excluded from distinct reward choices', () => {
+it('owned unique relics are excluded from independent reward choices', () => {
   for (let i = 0; i < 100; i++) {
     const choices = rewardChoices([{ instanceId: 'x', itemId: 'merry' }, { instanceId: 'y', itemId: 'sunny' }]);
-    expect(new Set(choices).size).toBe(3); expect(choices).not.toContain('merry'); expect(choices).not.toContain('sunny');
+    expect(choices).toHaveLength(3); expect(choices).not.toContain('merry'); expect(choices).not.toContain('sunny');
   }
 });
 it('ship rewards add two saved slots and a reward cannot be claimed twice', () => {
@@ -39,13 +39,14 @@ it('White Whistle excludes its wearer and stacks onto the first highest-BST ally
   const buffs = equipmentBonuses(team);
   expect(buffs[0].attack).toBe(0); expect(buffs[1].attack).toBe(team[1].baseStats.attack * 0.1); expect(buffs[2].attack).toBe(0);
 });
-it('Sukuna transformations are new UR instances, permit duplicates and discard old equipment', () => {
+it('Sukuna fingers stack on their existing instance and incarnate at twenty without overwriting base stats', () => {
   const job = fixture(), team = job.starterTeam as JourneyCharacter[];
   team[0].equipment = [{ instanceId: 'sword', itemId: 'nichirin' }];
   const old = team[0].instanceId;
-  for (const index of [0, 1]) applyInventoryAction(job, { action: 'use', item: grant(job, 'finger'), target: team[index].instanceId }, () => 0.5);
-  expect(team[0].id).toBe(175198); expect(team[1].id).toBe(175198); expect(team[0].instanceId).not.toBe(old);
-  expect(Object.values(team[0].baseStats).reduce((a, b) => a + b)).toBe(600); expect(team[0].equipment).toBeUndefined();
+  const before = structuredClone(team[0].baseStats);
+  for (let i = 0; i < 20; i++) applyInventoryAction(job, { action: 'use', item: grant(job, 'finger'), target: old }, () => 0.5);
+  expect(team[0].name).toBe('Incarnated Sukuna'); expect(team[0].sukunaStacks).toBe(20); expect(team[0].instanceId).toBe(old);
+  expect(team[0].baseStats).toEqual(before); expect(team[0].equipment).toHaveLength(1);
 });
 it('Stand Arrow grants new abilities up to three or leaves an empty slot on failure', () => {
   const job = fixture(), team = job.starterTeam as JourneyCharacter[], target = team[0];
@@ -57,13 +58,14 @@ it('Stand Arrow grants new abilities up to three or leaves an empty slot on fail
   applyInventoryAction(job, { action: 'use', item: excess, target: team[1].instanceId }, () => 0.9);
   expect(team[1].empty).toBe(true); expect(team[1].equipment).toBeUndefined();
 });
-it('Master Ball draws a UR or keeps the item when no UR exists', () => {
+it('Master Ball catches a defeated non-boss, then replaces a slot only after success', () => {
   const job = fixture(), team = job.starterTeam as JourneyCharacter[];
-  applyInventoryAction(job, { action: 'use', item: grant(job, 'masterball'), target: team[0].instanceId }, () => 0.5);
-  expect(team[0].statRarity).toBe('UR'); delete job.pool['175198'];
-  const item = grant(job, 'masterball');
-  expect(() => applyInventoryAction(job, { action: 'use', item, target: team[0].instanceId })).toThrow('No UR');
-  expect(job.inventory!.some(i => i.instanceId === item)).toBe(true);
+  const foe = unit(175198), original = structuredClone(team[0]);
+  job.encounter = { teams: [[foe]], selected: 0, result: {left: 1,right: 0,winner: 'left'} };
+  applyInventoryAction(job, { action: 'catch', item: grant(job, 'masterball'), target: foe.instanceId }, () => .999);
+  expect(job.pendingCatch?.id).toBe(175198); expect(team[0]).toEqual(original);
+  applyInventoryAction(job, {action: 'replace-catch',target:team[0].instanceId});
+  expect(team[0].statRarity).toBe('UR'); expect(job.pendingCatch).toBeUndefined();
 });
 it('extra units, empty slots and equipment participate in combat without editing base stats', () => {
   const team = Array.from({ length: 7 }, (_, i) => unit(90000 + i));

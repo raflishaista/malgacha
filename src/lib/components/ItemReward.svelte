@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ITEMS, type ItemId } from '$lib/items';
+  import { ITEMS, ITEM_COLORS, type ItemId } from '$lib/items';
   import Icon from './ItemIcon.svelte';
   let { choices, busy, error = '', onchoose }: { choices: ItemId[]; busy: boolean; error?: string; onchoose: (id: ItemId) => void } = $props();
   let dialog: HTMLDialogElement;
@@ -8,7 +8,7 @@
 <dialog bind:this={dialog} aria-labelledby="reward-heading" oncancel={(e) => e.preventDefault()}>
   <h2 id="reward-heading">CONGRATULATIONS</h2><p>You have obtained an item.</p><p>Choose 1</p>
   {#if error}<p role="alert">{error}</p>{/if}
-  <div class="choices">{#each choices as id}<button disabled={busy} onclick={() => onchoose(id)}><div class="graphic"><Icon {id} /></div><strong>{ITEMS[id].name}</strong><p>{ITEMS[id].description}</p></button>{/each}</div>
+  <div class="choices">{#each choices as id}<button style:border-color={ITEM_COLORS[ITEMS[id].rarity]} disabled={busy} onclick={() => onchoose(id)}><div class="graphic"><Icon {id} /></div><span style:color={ITEM_COLORS[ITEMS[id].rarity]}>{ITEMS[id].rarity}</span><br /><strong>{ITEMS[id].name}</strong><p>{ITEMS[id].description}</p></button>{/each}</div>
 </dialog>
 <style>
   dialog { background: #101010; color: #e8e8e3; border: 2px solid var(--accent); width: min(820px, calc(100% - 24px)); max-height: 90vh; padding: 28px; text-align: center; }

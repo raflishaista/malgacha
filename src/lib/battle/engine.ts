@@ -1,8 +1,11 @@
-import { equipmentBonuses } from './equipment';
+import { equipmentBonuses, dodgeChance, defenseIgnore, equipmentAtbRate } from './equipment';
+import { BattleItems } from './item-effects';
 import { firstStageTick, applyStageTick } from './stage-effects';
 import type { StageId } from '../stages';
 import type { JourneyCharacter } from '../types';
-import { ABILITIES, timedAbilities, implementationsFor, hasAbility, abilityCooldown, incomingDamageMultiplier, attackEffectsFor, type AbilityContext, type AbilityState } from './abilities';
+import { bossFor, BOSS_ABILITY_RULES, DEOXYS_FORMES, LURE } from '../bosses';
+import { STAT_KEYS, statTotal } from '../stats';
+import { ABILITIES, timedAbilities, implementationsFor, abilityCooldown, incomingDamageMultiplier, attackEffectsFor, type AbilityContext, type AbilityState } from './abilities';
 import { keywordsFor } from './keywords';
 import { effectiveStats } from './modifiers';
 import { BattleStatuses } from './statuses';
@@ -18,7 +21,16 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   if (left.length < 1 || left.length > 7 || (right.length !== 5 && !(right.length === 1 && right[0].boss))) throw new Error('Autobattles require 1–7 player units and five opponents or one boss.');
   const leftCount = left.length;
   let gear = [...equipmentBonuses(left), ...equipmentBonuses(right)];
-  const units = structuredClone([...left, ...right]), count = units.length;
+  const replayUnits = [...left, ...right];
+  const units = structuredClone(replayUnits);
+  let count = units.length;
+  const unitOverrides: Record<number, Partial<JourneyCharacter>> = {};
+  units.forEach((unit, index) => {
+    if (unit.boss && (unit.bossId ?? unit.id) === 74017) {
+      unit.bossForm = 'normal'; unit.image = DEOXYS_FORMES.normal.image; unit.battleModifiers = undefined;
+      unitOverrides[index] = { bossForm: 'normal', image: DEOXYS_FORMES.normal.image, battleModifiers: {} };
+    }
+  });
   const sides: number[] = units.map((_, i) => i < leftCount ? 0 : 1), positions = [...originalSlots];
   const participating = units.map((_, i) => stage !== 'budokai' || positions[i] < 5);
   const retired = new Set<number>(), executed = new Set<number>(), duelWins = [0, 0];
@@ -28,6 +40,9 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   const burnSide = stage === 'punk' ? Math.floor(random() * 2) : -1;
   const statuses = new BattleStatuses(count);
   const { burns, chillUntil } = statuses;
+  const pendingRevival = new Set<number>();
+  const itemEffects = new BattleItems(units, statuses, unitOverrides);
+  const { permanentlyNegated } = itemEffects;
   let stageAt = firstStageTick(stage);
   if (units.some(c => !c.baseStats || Object.values(c.baseStats).some(n => !Number.isFinite(n) || n <= 0))) throw new Error('Every unit needs valid base stats.');
   let time = 0;
@@ -38,8 +53,9 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   const bonus = units.map(() => 0), next = [...intervals], cooldown = units.map(abilityCooldown), nextAbility = [...cooldown];
   const timedIds = timedAbilities.map(ability => ability.id);
   const timedCooldown = (id: number) => ABILITIES.get(id)?.cooldown ?? Infinity;
-  const timers = units.map(c => Object.fromEntries(timedIds.filter(id => hasAbility(c, id)).map(id => [id, timedCooldown(id)])) as Record<number, number>);
+  const timers = units.map(c => Object.fromEntries(implementationsFor(c).filter(ability => ability.cooldown !== undefined).map(ability => [ability.id, ability.cooldown!])) as Record<number, number>);
   const abilityStates = units.map(() => new Map<number, AbilityState>());
+  itemEffects.suppressInitial();
   function state(owner: number, id: number): AbilityState {
     let value = abilityStates[owner].get(id);
     if (!value) { value = {}; abilityStates[owner].set(id, value); }
@@ -60,6 +76,8 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   const sameSide = (a: number, b: number) => sides[a] === sides[b];
   const sameDuel = (a: number, b: number) => stage !== 'budokai' || positions[a] === positions[b];
   const available = (i: number) => participating[i] && !retired.has(i) && hp[i] > 0;
+  const cannotAttack = (i: number) => implementationsFor(units[i]).some(ability => ability.cannotAttack);
+  units.forEach((_, i) => { if (cannotAttack(i)) next[i] = Infinity; });
   const frozenUntil = (i: number) => Math.max(time, ...stops.filter(s => s.owner !== i && (!s.affected || s.affected.includes(i)) && s.start <= time && s.end > time).map(s => s.end));
   function emit(actor: number, target: number, kind: BattleEvent['kind'], ability?: string, damage = 0) {
     events.push({ time, attacker: actor, target, kind, ability, damage, hp: hp[target], ...(actor >= 0 && implementationsFor(units[actor]).some(ability => ability.tracksAttackBonus) ? { attackBonus: bonus[actor] } : {}) });
@@ -77,10 +95,10 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     aura = auraMultipliers.map(multiplier => multiplier !== 1);
     stats = units.map((c, i) => effectiveStats(c, auraMultipliers[i], time, bonus[i], gear[i]));
     for (let i = 0; i < count; i++) {
-      const maximum = battleHP(stats[i].hp), interval = attackInterval(stats[i].speed) / statuses.atbRate(i, time);
+      const maximum = battleHP(stats[i].hp), interval = attackInterval(stats[i].speed) / statuses.atbRate(i, time) / equipmentAtbRate(units[i]);
       hp[i] = hp[i] > 0 ? Math.min(maximum, hp[i] / maxHP[i] * maximum) : 0;
       const resume = frozenUntil(i);
-      if (hp[i] > 0) next[i] = resume + Math.max(0, next[i] - resume) / intervals[i] * interval;
+      if (hp[i] > 0) next[i] = cannotAttack(i) || retired.has(i) || !participating[i] ? Infinity : Number.isFinite(next[i]) ? resume + Math.max(0, next[i] - resume) / intervals[i] * interval : resume + interval;
       maxHP[i] = maximum; intervals[i] = interval;
     }
   }
@@ -90,11 +108,17 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     return Math.max(0, 1 - activeSeconds(time, timers[owner][ability.id], owner, stops) / ability.cooldown!);
   }
   function snapshot() {
-    frames.push({ witches: units.map(c => !!c.witch), time, hp: [...hp], maxHP: [...maxHP], speed: stats.map(s => s.speed), aura: [...aura], sides: [...sides], positions: [...positions], participating: [...participating], intervals: [...intervals], chillUntil: [...chillUntil], duelWins: [...duelWins],
+    const bossGauges = units.flatMap((unit, owner) => implementationsFor(unit).flatMap(ability => {
+      if (!ability.bossGauge || !ability.cooldown || !available(owner) || !Number.isFinite(timers[owner][ability.id])) return [];
+      const remaining = ability.absoluteTimer ? Math.max(0, timers[owner][ability.id] - time) : activeSeconds(time, timers[owner][ability.id], owner, stops);
+      const title = ability.id === -10 ? (unit.sukunaStacks! >= 20 ? 'World-Cutting Slash' : 'Cleave') : ability.id === -15 ? (unit.sukunaStacks! >= 20 ? 'Malevolent Shrine' : 'Incomplete Malevolent Shrine') : bossFor(unit)?.title ?? 'Boss ability';
+      return [{ owner, title, progress: Math.max(0, Math.min(1, 1 - remaining / ability.cooldown)), remaining, cooldown: ability.cooldown, absolute: !!ability.absoluteTimer }];
+    }));
+    frames.push({ ...(Object.keys(unitOverrides).length ? { unitOverrides: structuredClone(unitOverrides) } : {}), ...(bossGauges.length ? { bossGauges } : {}), witches: units.map(c => !!c.witch), time, hp: [...hp], maxHP: [...maxHP], speed: stats.map(s => s.speed), aura: [...aura], sides: [...sides], positions: [...positions], participating: [...participating], intervals: [...intervals], chillUntil: [...chillUntil], duelWins: [...duelWins],
       atb: next.map((n, i) => hp[i] > 0 ? Math.max(0, Math.min(1, 1 - activeSeconds(time, n, i, stops) / intervals[i])) : 0),
       rumbling: units.map((_, i) => timedGauge(i, 'rumbling')),
       shrine: units.map((_, i) => timedGauge(i, 'shrine')), shrineUsed: units.map((_, i) => shrineUsed(i)),
-      burnUntil: burns.map(b => b?.until ?? 0) });
+      ...(statuses.negatedUntil.some(at => at > 0) ? { negatedUntil: [...statuses.negatedUntil] } : {}), ...(statuses.curse.some(stacks => stacks.size > 0) ? { curseStacks: statuses.curse.map(stacks => [...stacks.values()].reduce((a,b) => a+b,0)) } : {}), burnUntil: burns.map(b => b?.until ?? 0) });
   }
   function heal(i: number, fraction: number, title: string) {
     const before = hp[i]; hp[i] = Math.min(maxHP[i], hp[i] + maxHP[i] * fraction); emit(i, i, 'heal', title, before - hp[i]);
@@ -103,7 +127,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     if (!participating[target] || retired.has(target) || executed.has(target)) return;
     hp[target] = maxHP[target] * fraction; statuses.clearBurn(target);
     next[target] = frozenUntil(target) + intervals[target];
-    for (const id of timedIds) if (hasAbility(units[target], id)) timers[target][id] = ABILITIES.get(id)?.oncePerBattle && state(target, id).used ? Infinity : frozenUntil(target) + timedCooldown(id);
+    for (const ability of implementationsFor({ ...units[target], negated: false })) if (ability.cooldown !== undefined) timers[target][ability.id] = ability.oncePerBattle && state(target, ability.id).used ? Infinity : frozenUntil(target) + ability.cooldown;
     syncTimers();
     emit(actor, target, 'revive', title);
   }
@@ -114,11 +138,69 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     get time() { return time; },
     addAttack(owner, amount) { bonus[owner] += amount; },
     inflictBurn(owner, target) { statuses.burn(target, time, owner); },
+    scheduleAbility(owner, ability, delay) { timers[owner][ability] = time + delay; syncTimers(); },
+    summonLure(owner) {
+      let target = units.findIndex(unit => unit.summonOwner === owner);
+      if (target >= 0 && available(target)) return;
+      const baseStats = Object.fromEntries(STAT_KEYS.map(key => [key, stats[owner][key] * BOSS_ABILITY_RULES.lureFraction])) as JourneyCharacter['baseStats'];
+      const lure: JourneyCharacter = { ...LURE, titles: [], instanceId: `${units[owner].instanceId}-lure`, statRarity: 'N', baseStats, summonOwner: owner, keywords: ['TAUNT'] };
+      if (target < 0) {
+        target = count++;
+        units.push(lure); replayUnits.push(structuredClone(lure));
+        hp.push(baseStats.hp); maxHP.push(baseStats.hp); intervals.push(attackInterval(baseStats.speed)); stats.push({ ...baseStats });
+        gear.push({ hp: 0, attack: 0, defense: 0, speed: 0 }); aura.push(false); bonus.push(0);
+        next.push(time + intervals[target]); nextAbility.push(Infinity); timers.push({}); abilityStates.push(new Map());
+        sides.push(sides[owner]); positions.push(positions[owner] + 1); participating.push(true); statuses.addUnit();
+      } else {
+        units[target] = lure; retired.delete(target); hp[target] = baseStats.hp; maxHP[target] = baseStats.hp;
+        intervals[target] = attackInterval(baseStats.speed);
+        statuses.clearBurn(target); statuses.chillUntil[target] = 0; timers[target] = {}; nextAbility[target] = Infinity;
+        next[target] = time + attackInterval(baseStats.speed);
+      }
+      refreshGear(); refreshStats();
+      next[target] = frozenUntil(target) + intervals[target];
+      unitOverrides[target] = structuredClone(lure);
+      emit(owner, target, 'summon', 'Lure');
+    },
+    captureWeakest(owner) {
+      const candidates = units.flatMap((unit, i) => i < leftCount && !unit.witch && !retired.has(i) ? [i] : []);
+      if (!candidates.length) return false;
+      const target = candidates.reduce((first, candidate) => statTotal(replayUnits[candidate].baseStats) < statTotal(replayUnits[first].baseStats) ? candidate : first);
+      const host = units[target], bossStats = { ...stats[owner] };
+      const baseStats = Object.fromEntries(STAT_KEYS.map(key => [key, stats[target][key] + bossStats[key] * BOSS_ABILITY_RULES.fiendBoost])) as JourneyCharacter['baseStats'];
+      retired.add(target); hp[target] = 0; next[target] = Infinity; nextAbility[target] = Infinity; statuses.clearBurn(target);
+      for (const id of timedIds) timers[target][id] = Infinity;
+      emit(owner, target, 'capture');
+      units[owner] = { ...structuredClone(host), instanceId: units[owner].instanceId, boss: true, bossId: 184112, bossForm: undefined, baseStats, equipment: [], permanentBoosts: undefined, extraAbilities: [], keywords: [], battleModifiers: undefined, soulGem: false, marine: false, witch: false };
+      unitOverrides[owner] = structuredClone(units[owner]);
+      refreshGear(); refreshStats(); hp[owner] = maxHP[owner];
+      next[owner] = frozenUntil(owner) + intervals[owner];
+      emit(owner, owner, 'transform', 'Gun Fiend');
+      syncTimers();
+      return true;
+    },
+    changeForm(owner, form) {
+      const definition = DEOXYS_FORMES[form];
+      units[owner].bossForm = form; units[owner].image = definition.image; units[owner].battleModifiers = { ...definition.modifiers };
+      unitOverrides[owner] = { ...unitOverrides[owner], bossForm: form, image: definition.image, battleModifiers: { ...definition.modifiers } };
+      refreshStats();
+      emit(owner, owner, 'transform', 'Form Change');
+    },
+    defeatOpponents(owner, title) {
+      let announced = false;
+      units.forEach((_, i) => {
+        if (sides[i] !== sides[owner] && participating[i]) {
+          const damage = hp[i]; hp[i] = 0; next[i] = Infinity; nextAbility[i] = Infinity; statuses.clearBurn(i);
+          emit(owner, i, 'annihilate', announced ? undefined : title, damage); announced = true;
+        }
+      });
+      stageWinner = sides[owner] === 0 ? 'left' : 'right';
+    },
     stopTime(owner, seconds) {
       stops.push({ start: time, end: time + seconds, owner, affected: units.flatMap((_, i) => i !== owner && sameDuel(i, owner) ? [i] : []) });
       for (let i = 0; i < count; i++) if (i !== owner && sameDuel(i, owner)) {
         next[i] += seconds;
-        for (const id of timedIds) if (timers[i][id] !== undefined) timers[i][id] += seconds;
+        for (const id of timedIds) if (timers[i][id] !== undefined && !ABILITIES.get(id)?.absoluteTimer) timers[i][id] += seconds;
         statuses.freeze(i, seconds);
       }
     }
@@ -129,7 +211,10 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     refreshStats();
     for (const victim of dead) {
       units.forEach((c, i) => { if (available(i) && sameDuel(i, victim)) for (const ability of implementationsFor(c)) ability.onOtherDeath?.(context, i); });
-      if (units[victim].soulGem && !units[victim].witch && participating[victim]) {
+      const summonOwner = units[victim].summonOwner;
+      if (summonOwner !== undefined && available(summonOwner)) for (const ability of implementationsFor(units[summonOwner])) ability.onSummonDeath?.(context, summonOwner);
+      if (implementationsFor(units[victim]).some(ability => ability.onDeath?.(context, victim))) continue;
+      if (units[victim].soulGem && !units[victim].negated && !units[victim].witch && participating[victim]) {
         units[victim].witch = true; sides[victim] = 2;
         refreshGear(); refreshStats(); hp[victim] = maxHP[victim];
         next[victim] = frozenUntil(victim) + intervals[victim];
@@ -140,7 +225,10 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       if (caster >= 0 && hp[victim] === 0) implementationsFor(units[caster]).find(ability => ability.canReviveAlly?.(context, caster))?.onAllyDeath?.(context, caster, victim);
     }
     // Only Denji units dead before this damage batch can react to its deaths.
-    for (const i of alreadyDead) if (hp[i] === 0 && dead.some(v => sameDuel(i, v))) for (const ability of implementationsFor(units[i])) ability.onLaterDeath?.(context, i);
+    for (const i of alreadyDead) if (hp[i] === 0 && dead.some(v => sameDuel(i, v))) {
+      if (units[i].negated && !permanentlyNegated.has(i) && (units[i].id === 170732 || units[i].extraAbilities?.includes(170732)) && !units[i].removedAbilities?.includes(170732)) pendingRevival.add(i);
+      for (const ability of implementationsFor(units[i])) ability.onLaterDeath?.(context, i);
+    }
     refreshStats();
   }
   refreshStats();
@@ -188,14 +276,26 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   units.forEach((unit, i) => {
     if (available(i)) implementationsFor(unit).filter(ability => ability.onStart).sort((a, b) => (a.startPriority ?? 0) - (b.startPriority ?? 0))[0]?.onStart?.(context, i);
   });
+  const itemContext = { hp, get maxHP() { return maxHP; }, get time() { return time; }, available, sameSide, sameDuel, emit, deaths, refreshStats };
+  itemEffects.onStart(itemContext);
   settleDuels();
   snapshot();
   const hasSide = (side: number) => units.some((_, i) => sides[i] === side && available(i));
-  while (!stageWinner && ((hasSide(0) && hasSide(1)) || (hasSide(2) && (hasSide(0) || hasSide(1))))) {
+  while (!stageWinner && ((hasSide(0) && hasSide(1)) || (pendingRevival.size > 0 && (hasSide(0) || hasSide(1))) || (hasSide(2) && (hasSide(0) || hasSide(1))))) {
     const burnTimes = units.map((_, i) => available(i) ? statuses.nextBurn(i) : Infinity);
-    const earliest = Math.min(stageAt, nextExpiration, ...burnTimes, ...next.map((n, i) => available(i) ? Math.min(n, nextAbility[i]) : Infinity));
+    const negationExpiry = Math.min(Infinity, ...statuses.negatedUntil.filter((at, i) => !permanentlyNegated.has(i) && at > time));
+    const earliest = Math.min(stageAt, nextExpiration, negationExpiry, ...burnTimes, ...next.map((n, i) => available(i) ? Math.min(n, nextAbility[i]) : Infinity));
     if (earliest > BATTLE_RULES.maxSeconds) { time = BATTLE_RULES.maxSeconds; break; }
     time = earliest;
+    if (time === negationExpiry) {
+      units.forEach((unit, i) => {
+        if (!permanentlyNegated.has(i) && unit.negated && statuses.negatedUntil[i] <= time) {
+          unit.negated = false; unitOverrides[i] = { ...unitOverrides[i], negated: false };
+          if (pendingRevival.delete(i) && hp[i] <= 0) implementationsFor(unit).find(ability => ability.id === 170732)?.onLaterDeath?.(context, i);
+        }
+      });
+      refreshStats(); snapshot(); continue;
+    }
     if (time === stageAt) {
       const effect = applyStageTick(stage, {
         time, units, hp, maxHP, sides, positions, burnSide, statuses, available, random, refreshStats,
@@ -232,31 +332,41 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       snapshot(); continue;
     }
     const ready = next.flatMap((n, i) => available(i) && Math.abs(Math.min(n, nextAbility[i]) - time) < 1e-9 ? [i] : []);
-    const attacker = ready[Math.floor(random() * ready.length)];
+    const deadlineOwner = ready.find(i => implementationsFor(units[i]).some(ability => ability.absoluteTimer && timers[i][ability.id] === time));
+    const attacker = deadlineOwner ?? ready[Math.floor(random() * ready.length)];
     const isAbility = nextAbility[attacker] <= next[attacker];
     const activeId = isAbility ? Number(Object.entries(timers[attacker]).find(([, at]) => at === nextAbility[attacker])?.[0]) : 0;
-    const activation = isAbility ? ABILITIES.get(activeId)?.onTimed?.(context, attacker) : undefined;
+    const activation = isAbility && !units[attacker].negated ? ABILITIES.get(activeId)?.onTimed?.(context, attacker) : undefined;
     if (isAbility && !activation?.attack) {
-      timers[attacker][activeId] = time + (activation?.nextDelay ?? Infinity);
+      timers[attacker][activeId] = time + (units[attacker].negated ? timedCooldown(activeId) : activation?.nextDelay ?? Infinity);
       syncTimers(); snapshot(); continue;
     }
-    const living = hp.flatMap((n, i) => i !== attacker && available(i) && (units[attacker].witch || units[i].witch || !sameSide(i, attacker)) && sameDuel(i, attacker) ? [i] : []);
-    const taunts = living.filter(i => keywordsFor(units[i]).includes('TAUNT'));
+    const protectedByLure = (i: number) => implementationsFor(units[i]).some(ability => ability.protectedBySummon) && units.some((unit, j) => unit.summonOwner === i && available(j));
+    const living = hp.flatMap((n, i) => i !== attacker && available(i) && !protectedByLure(i) && (units[attacker].witch || units[i].witch || !sameSide(i, attacker)) && sameDuel(i, attacker) ? [i] : []);
+    const taunts = living.filter(i => !units[i].negated && keywordsFor(units[i]).includes('TAUNT'));
     const candidates = taunts.length ? taunts : living;
-    const targets = isAbility || units[attacker].witch ? living : [candidates[Math.floor(random() * candidates.length)]];
-    if (!targets.length) { retired.add(attacker); next[attacker] = Infinity; nextAbility[attacker] = Infinity; continue; }
+    const targets = isAbility && !activation?.attack?.single || units[attacker].witch ? living : candidates.length ? [candidates[Math.floor(random() * candidates.length)]] : [];
+    if (!targets.length) {
+      if (pendingRevival.size) { next[attacker] = time + intervals[attacker]; if (isAbility) { timers[attacker][activeId] = time + timedCooldown(activeId); syncTimers(); } }
+      else { retired.add(attacker); next[attacker] = Infinity; nextAbility[attacker] = Infinity; }
+      continue;
+    }
     const attackEffect = !isAbility ? attackEffectsFor(units[attacker], context, attacker) : undefined;
     const alreadyDead = hp.flatMap((n, i) => n <= 0 ? [i] : []), dead: number[] = [];
     targets.forEach((target, index) => {
-      const damage = attackDamage(stats[attacker].attack, stats[target].defense) * (attackEffect?.multiplier ?? 1) * incomingDamageMultiplier(units[target]);
+      if (dodgeChance(units[target]) > 0 && random() < dodgeChance(units[target])) { emit(attacker, target, 'dodge', 'DODGE'); return; }
+      const ignore = 1 - (1 - defenseIgnore(units[attacker])) * (1 - (activation?.attack?.defenseIgnore ?? 0));
+      const damage = attackDamage(stats[attacker].attack, stats[target].defense * (1 - ignore)) * (activation?.attack?.multiplier ?? attackEffect?.multiplier ?? 1) * incomingDamageMultiplier(units[target]);
+      const actual = Math.min(hp[target], damage);
       hp[target] = Math.max(0, hp[target] - damage); if (hp[target] === 0) dead.push(target);
       emit(attacker, target, activation?.attack?.kind, index === 0 ? activation?.attack?.title ?? attackEffect?.title : undefined, damage);
       if (!isAbility) for (const ability of implementationsFor(units[attacker])) ability.onHit?.(context, attacker, target);
+      if (itemEffects.onHit(itemContext, attacker, target, actual) && !dead.includes(target)) dead.push(target);
     });
     if (isAbility) { timers[attacker][activeId] = time + (activation?.nextDelay ?? Infinity); syncTimers(); } else next[attacker] = time + intervals[attacker];
     execution(attacker, dead); deaths(dead, alreadyDead); settleDuels(); snapshot();
   }
   const survivors = [0, 1].map(side => hp.filter((n, i) => n > 0 && sides[i] === side && participating[i]).length);
   const winner = stageWinner ?? (survivors[0] === 0 && survivors[1] === 0 ? 'draw' : survivors[0] === 0 ? 'right' : survivors[1] === 0 ? 'left' : 'draw');
-  return { stage, units: [...left, ...right], leftCount, events, stops, frames, duration: time, winner: hasSide(2) ? survivors[0] === 0 ? 'right' : winner === 'left' ? 'draw' : winner : winner, left: survivors[0], right: survivors[1] };
+  return { stage, units: replayUnits, leftCount, events, stops, frames, duration: time, winner: hasSide(2) ? survivors[0] === 0 ? 'right' : winner === 'left' ? 'draw' : winner : winner, left: survivors[0], right: survivors[1] };
 }

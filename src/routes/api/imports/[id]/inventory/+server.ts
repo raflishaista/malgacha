@@ -8,7 +8,7 @@ export const GET: RequestHandler = async ({ params }) => {
 export const POST: RequestHandler = async ({ params, request }) => {
   try {
     const body = await request.json();
-    if (!['claim', 'equip', 'use'].includes(body.action) || ['item', 'target', 'reward'].some(k => body[k] !== undefined && typeof body[k] !== 'string')) throw new Error('Invalid item action.');
+    if (!['claim', 'equip', 'use', 'catch', 'replace-catch', 'wish', 'dismiss-fusion'].includes(body.action) || ['item', 'target', 'reward'].some(k => body[k] !== undefined && typeof body[k] !== 'string') || ['ability', 'character'].some(k => body[k] !== undefined && !Number.isInteger(body[k]))) throw new Error('Invalid item action.');
     return json(await engine.journeyInventory(params.id, body));
   } catch (e) { return json({ error: e instanceof Error ? e.message : 'Item action failed.' }, { status: 400 }); }
 };

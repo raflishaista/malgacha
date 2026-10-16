@@ -1,8 +1,12 @@
 <script lang="ts">
+  import HostAbilities from './HostAbilities.svelte';
+  import JourneyPortrait from './JourneyPortrait.svelte';
+  import { dodgeChance } from '$lib/battle/equipment';
   import KeywordTags from './KeywordTags.svelte';
   import { keywordBonuses } from '$lib/battle/keywords';
   import type { JourneyCharacter } from '$lib/types';
-  import { BOSSES } from '$lib/bosses';
+  import { BOSS_RULES } from '$lib/bosses';
+  import BossAbility from './BossAbility.svelte';
   import { abilityIds } from '$lib/battle/abilities/catalog';
   import EquipmentIcons from './EquipmentIcons.svelte';
   import { equipmentBonuses, emptyBoosts } from '$lib/items';
@@ -13,7 +17,7 @@
   const rarity = $derived(character.rarityOverride ?? rarityFor(character.favorites));
   const equipmentBoost = $derived(equipmentBonuses(team.length ? team : [character])[team.length ? team.findIndex(c => c.instanceId === character.instanceId) : 0] ?? emptyBoosts());
   const keywordBoost = $derived(keywordBonuses(character, equipmentBoost));
-  const passives = $derived(character.boss ? [BOSSES.find(b => b.id === character.id)] : abilityIds(character).map(abilityFor));
+  const passives = $derived(character.boss ? [] : abilityIds(character).map(abilityFor));
   let dismissed = $state(false);
 </script>
 
@@ -22,11 +26,10 @@
 <article class="journey-character character-entry" data-rarity={rarity} class:boss={character.boss}>
   <div class="portrait">
     <EquipmentIcons unit={character} />
-    {#if character.image}<img src={character.image} alt={character.name} loading="lazy" />
-    {:else}<span class="portrait-fallback">{character.name}</span>{/if}
+    <JourneyPortrait unit={character} />
   </div>
   {#if !hideFavorites}<p class="favorite-count">{typeof character.favorites === 'number' ? character.favorites.toLocaleString() + ' favorites' : 'Favorites unknown'}</p>{/if}
-  <h3><a href={character.url} target="_blank" rel="noreferrer">{character.name}</a><KeywordTags unit={character} />{#if character.boss}<span class="boss-tag">BOSS</span>{:else if rarity}<span class="rarity-label">{rarity}</span>{/if}</h3>
+  <h3>{#if character.url}<a href={character.url} target="_blank" rel="noreferrer">{character.name}</a>{:else}{character.name}{/if}<KeywordTags unit={character} />{#if character.boss}<span class="boss-tag">BOSS</span>{:else if rarity}<span class="rarity-label">{rarity}</span>{/if}</h3>
   <ul class="title-list">{#each character.titles.slice(0, 2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul>
   {#if character.titles.length > 2}<details class="more-titles"><summary>{character.titles.length - 2} more titles</summary><ul class="title-list">{#each character.titles.slice(2) as title}<li><span>{title.kind}</span> {title.name}</li>{/each}</ul></details>{/if}
   {#each passives as ability}{#if ability}
@@ -37,8 +40,11 @@
       </div>
     </div>
   {/if}{/each}
+  {#if character.boss}<BossAbility unit={character} />{/if}
+  {#if character.sukunaStacks}<HostAbilities stacks={character.sukunaStacks} />{/if}
   <details class="base-stats">
     <summary>Base stats <span>BST {statTotal(character.baseStats)}</span></summary>
+    {#if dodgeChance(character)}<p class="dodge">Dodge +{Math.round(dodgeChance(character)*100)}%</p>{/if}
     {#each STAT_KEYS as key}
       {@const gear = equipmentBoost[key]}
       {@const permanent = character.permanentBoosts?.[key] ?? 0}
@@ -47,11 +53,12 @@
       <div class="stat-row"><span>{STAT_LABELS[key]}</span><strong>{character.baseStats[key]}{#if gear}<small class="gear-boost"> (+{Number(gear.toFixed(2))})</small>{/if}{#if permanent}<small class="permanent-boost"> (+{Number(permanent.toFixed(2))})</small>{/if}{#if keyword}<small class="permanent-boost"> (+{Number(keyword.toFixed(2))})</small>{/if}</strong><div class="stat-bars" role="img" aria-label={STAT_LABELS[key] + ': ' + (character.baseStats[key] + gear + permanent + keyword)}><span style:width={character.baseStats[key] / scale * 100 + '%'}></span><span class="gear" style:width={gear / scale * 100 + '%'}></span><span class="permanent" style:width={(permanent + keyword) / scale * 100 + '%'}></span></div></div>
     {/each}
     {#if !rarity && !character.boss}<p>Unknown favorites: N stat budget used.</p>{/if}
-    <p>{character.boss ? 'ATK + DEF + SPD: 510 · HP: 500' : `Base values · bars share a 0–${STAT_BAR_MAX} scale.`}</p>
+    <p>{character.boss ? `ATK + DEF + SPD: ${BOSS_RULES.bst} · HP: ${BOSS_RULES.hp}` : `Base values · bars share a 0–${STAT_BAR_MAX} scale.`}</p>
   </details>
 </article>{/if}
 
 <style>
+  .base-stats .dodge { color: #9bc8ed; font-size: 12px; }
   .stat-bars { display: flex; height: 8px; background: #292329; min-width: 30px; }
   .stat-bars span { background: var(--rarity-color); }
   .stat-bars .gear { background: #b7ed9a; } .gear-boost { color: #b7ed9a; }

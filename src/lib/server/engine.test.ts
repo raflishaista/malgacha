@@ -9,6 +9,7 @@ import { Engine } from './engine';
 import { Store } from './store';
 import { parseUsername } from './providers';
 import type { Job, Title } from '../types';
+import { BOSSES } from '../bosses';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -31,6 +32,51 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('persists searched wish candidates separately and atomically spends seven balls on a replacement', async () => {
+    const store=await setup(), searchCharacters=vi.fn(async()=>[{id:6127,name:'Shen Long',favorites:12000,image:null,url:'',titles:[]}]);
+    const providers={lists:vi.fn(async()=>[]),cast:vi.fn(async()=>[]),searchCharacters};
+    const engine=new Engine(store,providers,0), job=await engine.create('demo',true,true,'journeys');
+    await finished(store,job.id);const team=await engine.journeyTeam(job.id), saved=(await store.getJob(job.id))!;
+    saved.inventory=Array.from({length:7},(_,i)=>({instanceId:String(i),itemId:'dragonball'}));await store.saveJob(saved);
+    expect((await engine.journeySearch(job.id,'Shen'))[0].id).toBe(6127);expect((await store.getJob(job.id))!.pool['6127']).toBeUndefined();
+    const restarted=new Engine(store,providers,0), action={action:'wish' as const,character:6127,target:team[0].instanceId};
+    const results=await Promise.allSettled([restarted.journeyInventory(job.id,action),restarted.journeyInventory(job.id,action)]);
+    expect(results.filter(r=>r.status==='fulfilled')).toHaveLength(1);const after=await restarted.journeyInventory(job.id);
+    expect(after.characters[0].id).toBe(6127);expect(after.inventory).toHaveLength(0);
+  });
+  it('Future Machine resets a losing encounter once, keeps the relic and only charges the final loss across reloads', async () => {
+    const store = await setup(), providers = { lists: vi.fn(async () => []), cast: vi.fn(async () => []) };
+    const engine = new Engine(store, providers, 0), job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);const team = await engine.journeyTeam(job.id), saved = (await store.getJob(job.id))!;
+    saved.inventory = [{instanceId:'machine',itemId:'machine'}];
+    saved.encounter = {teams:[[{...team[0],id:-1001,instanceId:'angel',boss:true,baseStats:{hp:10000000,attack:125,defense:125,speed:125}}]]};
+    await store.saveJob(saved);
+    const result = await engine.journeyBattle(job.id,0,undefined,'idle');
+    expect(result.replay?.initialAttempt?.duration).toBe(20);expect(result.replay?.duration).toBe(20);expect(result.lives).toBe(2);expect(result.encounter?.machineUsed).toBe(true);expect(result.inventory).toEqual(saved.inventory);expect(result.characters).toEqual(team);
+    const restarted = new Engine(store,providers,0), again = await restarted.journeyBattle(job.id,0,undefined,'idle');expect(again.lives).toBe(2);expect(again.replay).toEqual(result.replay);
+  });
+  it('persists a Gun Fiend loss once while restoring the captured player and keeping the boss floor pending', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const initial = await engine.journeyTeam(job.id);
+    const host = { ...initial[0], id: 900000, baseStats: { hp: 1000, attack: 125, defense: 125, speed: 125 } };
+    const definition = BOSSES.find(boss => boss.id === 184112)!;
+    const enemy = { ...host, ...definition, url: '', instanceId: 'gun-devil', boss: true, baseStats: { hp: 1, attack: 200, defense: 200, speed: 200 } };
+    const saved = (await store.getJob(job.id))!;
+    saved.starterTeam = [host]; saved.arenaWins = 9; saved.encounter = { teams: [[enemy]] };
+    await store.saveJob(saved);
+    const result = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(result.result!.winner).toBe('right'); expect(result.lives).toBe(2); expect(result.arenaWins).toBe(9);
+    expect(result.characters).toEqual([host]);
+    const restarted = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const replayed = await restarted.journeyBattle(job.id, 0, undefined, 'idle');
+    expect(replayed.lives).toBe(2); expect(replayed.characters).toEqual([host]);
+    expect(replayed.replay!.frames!.some(frame => frame.unitOverrides?.[1]?.bossId === 184112)).toBe(true);
+    expect((await restarted.journeyOpponents(job.id)).teams).toHaveLength(1);
+    expect((await store.getJob(job.id))!.starterTeam).toEqual([host]);
+  });
   it('deducts lives once per loss and resets the entire run on the third loss', async () => {
     const store = await setup();
     const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
@@ -58,19 +104,19 @@ describe('durable imports', () => {
     await engine.journeyReset(job.id);
     expect((await store.getJob(job.id))!.encounter).toBeUndefined();
   });
-  it('awards an item after a non-boss fifth floor, keeps draws free, and clears pending rewards on reset', async () => {
+  it('awards an item after a non-boss fourth floor, keeps draws free, and clears pending rewards on reset', async () => {
     const store = await setup();
     const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
     const job = await engine.create('demo', true, true, 'journeys');
     await finished(store, job.id);
     const team = await engine.journeyTeam(job.id);
     const saved = (await store.getJob(job.id))!;
-    saved.lives = 2; saved.arenaWins = 4;
+    saved.lives = 2; saved.arenaWins = 3;
     saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 10000, attack: 10000, defense: 10000, speed: 10000 } }));
     saved.encounter = { teams: [team] };
     await store.saveJob(saved);
     const fight = await engine.journeyBattle(job.id, 0, undefined, 'idle');
-    expect(fight.arenaWins).toBe(5); expect(fight.itemReward!.choices).toHaveLength(3); expect(fight.lives).toBe(2);
+    expect(fight.arenaWins).toBe(4); expect(fight.itemReward!.choices).toHaveLength(3); expect(fight.lives).toBe(2);
     expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).itemReward).toEqual(fight.itemReward);
     const reset = await engine.journeyReset(job.id);
     expect(reset.itemReward).toBeNull(); expect(reset.arenaWins).toBe(0); expect(reset.lives).toBe(3);
@@ -79,7 +125,7 @@ describe('durable imports', () => {
     await store.saveJob(fresh);
     expect((await engine.journeyBattle(job.id, 0, undefined, 'clout')).lives).toBe(3);
   });
-  it('persists one boss item reward, atomically claims it, and keeps inventory across reloads', async () => {
+  it('persists one fourth-floor item reward, atomically claims it, and keeps inventory across reloads', async () => {
     const store = await setup();
     const providers = { lists: vi.fn(async () => []), cast: vi.fn(async () => []) };
     const engine = new Engine(store, providers, 0);
@@ -87,14 +133,14 @@ describe('durable imports', () => {
     await finished(store, job.id);
     const team = await engine.journeyTeam(job.id);
     const saved = (await store.getJob(job.id))!;
-    saved.arenaWins = 9;
+    saved.arenaWins = 7;
     saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 10000, attack: 10000, defense: 10000, speed: 10000 } }));
     await store.saveJob(saved);
     const bossEncounter = await engine.journeyOpponents(job.id);
-    expect(bossEncounter.stage).toBeUndefined();
-    expect((await store.getJob(job.id))!.encounter!.stage).toBeUndefined();
+    expect(bossEncounter.stage).toBeDefined();
+    expect((await store.getJob(job.id))!.encounter!.stage).toBeDefined();
     const fight = await engine.journeyBattle(job.id, 0, undefined, 'idle');
-    expect(fight.replay!.stage).toBeUndefined();
+    expect(fight.replay!.stage).toBeDefined();
     expect(fight.itemReward!.choices).toHaveLength(3);
     expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).itemReward).toEqual(fight.itemReward);
     await expect(engine.journeyOpponents(job.id)).rejects.toThrow('Choose your item reward');

@@ -5,6 +5,14 @@ import { setTimeout as sleep } from 'node:timers/promises';
 // Eliminate real pacing delays while still exercising the provider control flow.
 vi.mock('node:timers/promises', () => ({ setTimeout: vi.fn(async () => undefined) }));
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); vi.clearAllMocks(); });
+it('searches Tenrai characters with encoded text, preserves favorites, and filters image hosts', async () => {
+  const fetcher = vi.fn(async () => Response.json({data:[{mal_id:6127,name:'Shen Long',favorites:1234,images:{webp:{image_url:'https://cdn.myanimelist.net/images/characters/7/65049.webp'}}},{mal_id:99,name:'Other',images:{jpg:{image_url:'https://untrusted.test/image.jpg'}}}]}));
+  vi.stubGlobal('fetch',fetcher);
+  const results=await createProviders(()=>'secret').searchCharacters!('Shen Long');
+  const url=new URL((fetcher.mock.calls[0] as unknown as [string])[0]);
+  expect(url.pathname).toBe('/v1/characters');expect(url.searchParams.get('q')).toBe('Shen Long');expect(url.searchParams.get('limit')).toBe('8');
+  expect(results[0].favorites).toBe(1234);expect(results[1].image).toBeNull();expect(fetcher.mock.calls[0]).toEqual([expect.any(String),expect.objectContaining({headers:{}})]);
+});
 
 it('follows both list paginations, includes NSFW entries, and filters only planned titles', async () => {
   const item = (id: number, status: string) => ({ node: { id, title: `Title ${id}`, mean: 8.37 }, list_status: { status, score: 4 } });

@@ -1,50 +1,191 @@
 {
-  "merry": {
-    "name": "Going Merry",
-    "category": "relic",
-    "unique": true,
-    "description": "Permanently adds one team slot, immediately filled with a random character. One per player."
-  },
-  "sunny": {
-    "name": "Thousand Sunny",
-    "category": "relic",
-    "unique": true,
-    "description": "Permanently adds one team slot, immediately filled with a random character. One per player."
+  "pokeball": {
+    "name": "Poké Ball",
+    "category": "consumable",
+    "rarity": "R",
+    "unique": false,
+    "description": "Try to catch a defeated opponent, then choose a team slot to replace. Catch rates: N 90%, R 60%, SR 30%, SSR 10%, UR 1%. Bosses cannot be caught."
   },
   "nichirin": {
     "name": "Nichirin Sword",
     "category": "equipment",
+    "rarity": "R",
     "unique": false,
-    "description": "The equipped unit gains +15 Attack. Multiple copies stack."
-  },
-  "whistle": {
-    "name": "White Whistle",
-    "category": "equipment",
-    "unique": false,
-    "description": "Gives the strongest other ally +5% of every base stat. Uses base BST; ties go to the first ally. Multiple copies stack."
+    "description": "Grants +15 Attack."
   },
   "airgear": {
     "name": "Air Gear",
     "category": "equipment",
+    "rarity": "R",
     "unique": false,
-    "description": "The equipped unit gains +15 Speed. Multiple copies stack."
+    "description": "Grants +15 Speed."
   },
   "finger": {
     "name": "Sukuna’s Finger",
     "category": "consumable",
+    "rarity": "R",
     "unique": false,
-    "description": "Replaces a chosen unit with Sukuna, with fresh UR stats totaling 600. Equipment and previous abilities are lost."
+    "description": "Adds one Host of Sukuna stack. At 5: King of Poison. At 10: Cleave. At 15: Incomplete Malevolent Shrine. At 20: incarnate as Sukuna, upgrading both attacks. Stacks are lost on replacement."
+  },
+  "coin": {
+    "name": "Shiraishi Coin",
+    "category": "relic",
+    "rarity": "R",
+    "unique": false,
+    "description": "Each coin raises the minimum favorites filter for victory rerolls by 50. Stacks."
+  },
+  "greatball": {
+    "name": "Great Ball",
+    "category": "consumable",
+    "rarity": "SR",
+    "unique": false,
+    "description": "Try to catch a defeated opponent. Catch rates: N 100%, R 80%, SR 50%, SSR 30%, UR 5%. Bosses cannot be caught."
+  },
+  "radar": {
+    "name": "Dragon Ball Radar",
+    "category": "relic",
+    "rarity": "SR",
+    "unique": true,
+    "description": "SSR rewards have a 40% chance to be a Dragon Ball. One per player."
+  },
+  "longinus": {
+    "name": "Spear of Longinus",
+    "category": "equipment",
+    "rarity": "SR",
+    "unique": false,
+    "description": "Attacks ignore 40% of the target’s Defense."
+  },
+  "swordfish": {
+    "name": "Swordfish II",
+    "category": "equipment",
+    "rarity": "SR",
+    "unique": false,
+    "description": "Grants +25 Speed and a 10% chance to dodge incoming attacks."
+  },
+  "drug": {
+    "name": "Quirk-Destroying Drug",
+    "category": "consumable",
+    "rarity": "SR",
+    "unique": false,
+    "description": "Choose and permanently remove one of a unit’s passive abilities."
+  },
+  "curse": {
+    "name": "Curse Devil Nail",
+    "category": "equipment",
+    "rarity": "SR",
+    "unique": false,
+    "description": "ATB fills 20% slower. After three hits on the same target, it loses 50% of maximum HP (15% for bosses). Resets after each trigger; every three hits can trigger it again."
+  },
+  "whistle": {
+    "name": "White Whistle",
+    "category": "equipment",
+    "rarity": "SR",
+    "unique": false,
+    "description": "Gives the strongest other ally +5% of every base stat. Uses base BST; ties go to the first ally. Copies stack."
+  },
+  "ultraball": {
+    "name": "Ultra Ball",
+    "category": "consumable",
+    "rarity": "SSR",
+    "unique": false,
+    "description": "Try to catch a defeated opponent. Catch rates: N 100%, R 100%, SR 80%, SSR 50%, UR 10%. Bosses cannot be caught."
+  },
+  "dragonball": {
+    "name": "Dragon Ball",
+    "category": "relic",
+    "rarity": "SSR",
+    "unique": false,
+    "description": "Collect seven to summon Shenlong and wish for a character of your choosing. Seven Dragon Balls are consumed per wish."
+  },
+  "inverted": {
+    "name": "Inverted Spear of Heaven",
+    "category": "equipment",
+    "rarity": "SSR",
+    "unique": false,
+    "description": "Grants +20 Attack. Attacks inflict NEGATED for 6 seconds, suppressing passive abilities and keywords. Reapplication refreshes the duration."
+  },
+  "journal": {
+    "name": "Grandpa’s Hissatsu Journal",
+    "category": "consumable",
+    "rarity": "SSR",
+    "unique": false,
+    "description": "Permanently grants Taunt. Enemies prioritize this unit. Taunt does not stack."
+  },
+  "rokkakaka": {
+    "name": "Rokkakaka Fruit",
+    "category": "consumable",
+    "rarity": "SSR",
+    "unique": false,
+    "description": "Permanently sacrifices a unit for a random item of the same rarity. Cannot be used on N units."
   },
   "arrow": {
     "name": "Stand Arrow",
     "category": "consumable",
+    "rarity": "SSR",
     "unique": false,
-    "description": "70% chance to grant a new implemented passive; 30% chance to permanently kill the unit, leaving an empty slot. Maximum three passives per unit."
+    "description": "70% chance to grant a new implemented passive; 30% chance to permanently kill the unit. Maximum three passives per unit."
+  },
+  "merry": {
+    "name": "Going Merry",
+    "category": "relic",
+    "rarity": "SSR",
+    "unique": true,
+    "description": "Permanently adds one team slot, filled with a random character. One per player."
+  },
+  "mask": {
+    "name": "Stone Mask",
+    "category": "consumable",
+    "rarity": "SSR",
+    "unique": false,
+    "description": "Permanently grants Lifesteal: attacks restore HP equal to half the actual damage dealt. Does not stack."
   },
   "masterball": {
     "name": "Master Ball",
     "category": "consumable",
+    "rarity": "UR",
     "unique": false,
-    "description": "Replaces a chosen unit with a random UR character from your imported pool, with fresh stats. Requires an eligible UR character."
+    "description": "Catch any defeated non-boss opponent without fail, then choose a team slot to replace."
+  },
+  "stone": {
+    "name": "Philosopher’s Stone",
+    "category": "relic",
+    "rarity": "UR",
+    "unique": true,
+    "description": "Victory rerolls cannot produce a lower-rarity unit than the unit being replaced. One per player."
+  },
+  "hogyoku": {
+    "name": "Hōgyoku",
+    "category": "equipment",
+    "rarity": "UR",
+    "unique": false,
+    "description": "At battle start, suppresses all of the wearer’s passive abilities and keywords for this battle. Grants +25 to all stats per suppressed passive. Traits remain visible."
+  },
+  "potara": {
+    "name": "Potara Earrings",
+    "category": "equipment",
+    "rarity": "UR",
+    "unique": false,
+    "description": "Equip one on each of two units to fuse them. Each stat becomes 75% of their combined values. Inherits the first passive, keyword and non-Potara equipment item of each; uses the higher rarity."
+  },
+  "machine": {
+    "name": "Future Machine No. 8",
+    "category": "relic",
+    "rarity": "UR",
+    "unique": true,
+    "description": "On the first loss in each encounter, restarts the battle without losing a life. Stage and ability state reset. The relic is kept."
+  },
+  "behelit": {
+    "name": "Behelit",
+    "category": "equipment",
+    "rarity": "UR",
+    "unique": false,
+    "description": "At battle start, kills every other participating ally. Grants +25 to all stats per ally killed, for this battle. Death-triggered abilities still activate."
+  },
+  "sunny": {
+    "name": "Thousand Sunny",
+    "category": "relic",
+    "rarity": "UR",
+    "unique": true,
+    "description": "Permanently adds one team slot, filled with a random character. One per player."
   }
 }

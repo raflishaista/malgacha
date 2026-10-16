@@ -25,14 +25,14 @@ it('declining advances once, costs no lives, and cannot be used as a free battle
   expect((await engine.journeyEvent(id, { index: 0, choice: 'no' })).arenaWins).toBe(1);
   await expect(engine.journeyBattle(id, 0, undefined, 'idle')).rejects.toThrow('no battle');
 });
-it('saves a Soul Gem on exactly one eligible unit and advances once with a fifth-floor item', async () => {
+it('saves a Soul Gem on exactly one eligible unit and advances once with a fourth-floor item', async () => {
   const { engine, store, id, team } = await setup('creature');
-  const saved = (await store.getJob(id))!; saved.arenaWins = 4; await store.saveJob(saved);
+  const saved = (await store.getJob(id))!; saved.arenaWins = 3; await store.saveJob(saved);
   await engine.journeyEvent(id, { index: 0, choice: 'yes' });
   await expect(engine.journeyOpponents(id)).rejects.toThrow('Finish your event');
   await expect(engine.journeyEvent(id, { index: 0, target: 'missing' })).rejects.toThrow('eligible');
   const result = await engine.journeyEvent(id, { index: 0, target: team[0].instanceId });
-  expect(result.arenaWins).toBe(5); expect(result.itemReward?.choices).toHaveLength(3);
+  expect(result.arenaWins).toBe(4); expect(result.itemReward?.choices).toHaveLength(3);
   expect((result.characters[0] as JourneyCharacter).soulGem).toBe(true);
   expect((result.characters[0] as JourneyCharacter).baseStats).toEqual(team[0].baseStats);
   expect((await engine.journeyEvent(id, { index: 0, target: team[1].instanceId })).characters).toEqual(result.characters);

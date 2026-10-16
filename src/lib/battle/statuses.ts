@@ -1,4 +1,6 @@
 export const STATUS_RULES = {
+  negated: { duration: 6, label: 'NEGATED', description: 'Passive abilities and keywords are suppressed. Timers continue; activations due during suppression are skipped. Equipment and stage effects remain active.' },
+  curse: { label: 'CURSE', description: 'Curse Devil Nail tracks hits from each attacker. Three hits remove maximum HP. Persists for this battle.' },
   chill: { duration: 6, rate: 0.75, label: 'CHILL', description: 'ATB fills 25% slower for 6 seconds. Reapplication refreshes the duration; it does not stack.' },
   burn: { duration: 6, interval: 1, hpFraction: 0.03, label: 'BURN', description: 'This unit takes 3% of maximum HP as damage each second for 6 seconds. Reapplication refreshes the duration; it does not stack.' }
 };
@@ -10,7 +12,11 @@ export function applyBurn(previous: Burn | undefined, time: number, source: numb
 export class BattleStatuses {
   readonly burns: (Burn | undefined)[];
   readonly chillUntil: number[];
-  constructor(count: number) { this.burns = Array(count).fill(undefined); this.chillUntil = Array(count).fill(0); }
+  readonly negatedUntil: number[];
+  readonly curse: Map<number, number>[];
+  constructor(count: number) { this.burns = Array(count).fill(undefined); this.chillUntil = Array(count).fill(0); this.negatedUntil = Array(count).fill(0); this.curse = Array.from({length: count}, () => new Map()); }
+  addUnit() { this.burns.push(undefined); this.chillUntil.push(0); this.negatedUntil.push(0); this.curse.push(new Map()); }
+  negate(target: number, time: number) { this.negatedUntil[target] = time + STATUS_RULES.negated.duration; }
   burn(target: number, time: number, source: number) { this.burns[target] = applyBurn(this.burns[target], time, source); }
   chill(target: number, time: number) { this.chillUntil[target] = time + STATUS_RULES.chill.duration; }
   atbRate(target: number, time: number) { return this.chillUntil[target] > time ? STATUS_RULES.chill.rate : 1; }

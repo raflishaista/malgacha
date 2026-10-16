@@ -4,19 +4,19 @@ import { simulateBattle } from './autobattle';
 it('schedules bosses at the tenth, twentieth and thirtieth encounters', () => {
   expect([0, 8, 9, 10, 19, 20, 29].map(isBossFloor)).toEqual([false, false, true, false, true, false, true]);
 });
-it('rolls fixed HP and exactly 510 bounded combat stats', () => {
+it('rolls configured HP and exact bounded combat stats', () => {
   for (let i = 0; i < 1000; i++) {
     const boss = rollBoss(String(i));
     const { hp, attack, defense, speed } = boss.baseStats;
-    expect(hp).toBe(500);
-    expect(attack + defense + speed).toBe(510);
+    expect(hp).toBe(BOSS_RULES.hp);
+    expect(attack + defense + speed).toBe(BOSS_RULES.bst);
     expect([attack, defense, speed].every(n => n >= BOSS_RULES.min && n <= BOSS_RULES.max)).toBe(true);
     expect(BOSSES.some(b => b.id === boss.id)).toBe(true);
   }
 });
-it('runs a 5v1 battle with random normal attacks and no boss ability events', () => {
+it('keeps the unimplemented Mahoraga ability as a preview with normal attacks', () => {
   const players = Array.from({ length: 5 }, (_, i) => ({ ...rollBoss(String(i)), boss: false, id: i }));
-  for (const entry of BOSSES) {
+  for (const entry of BOSSES.filter(boss => !boss.active)) {
     const boss = { ...rollBoss('boss'), id: entry.id };
     const replay = simulateBattle(players, [boss]);
     expect(replay.units).toHaveLength(6);

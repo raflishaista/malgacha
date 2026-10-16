@@ -1,4 +1,10 @@
 <script lang="ts">
+  import JourneyPortrait from './JourneyPortrait.svelte';
+  import BossAbility from './BossAbility.svelte';
+  import { unitAtFrame, visibleBattleUnits } from '$lib/battle/presentation';
+  import { implementationsFor } from '$lib/battle/abilities';
+  import { advanceReplayTime } from '$lib/battle/playback';
+  import { bossFor, DEOXYS_FORMES } from '$lib/bosses';
   import KeywordTags from './KeywordTags.svelte';
   import StageBanner from './StageBanner.svelte';
   import EquipmentIcons from './EquipmentIcons.svelte';
@@ -8,10 +14,11 @@
   import { attackInterval, battleHP, activeSeconds } from '$lib/battle/formulas';
   import { ABILITY_RULES } from '$lib/battle/abilities/config';
   import type { BattleFrame, BattleReplay } from '$lib/battle/types';
-  let { replay, onfinish, turbo = true }: { replay: BattleReplay; onfinish: () => void; turbo?: boolean } = $props();
+  let { replay, onfinish }: { replay: BattleReplay; onfinish: () => void } = $props();
   let combatFrame = $state<BattleFrame | undefined>(untrack(() => replay.frames?.[0]));
   const maximumHP = $derived(combatFrame?.maxHP ?? replay.units.map(c => battleHP(c.baseStats.hp)));
   function gauge(i: number, rumbling = false) {
+    if (rumbling && combatFrame?.unitOverrides?.[i]?.negated) return 0;
     if (!combatFrame) return hp[i] > 0 ? Math.min(1, activeSeconds(rumbling ? lastRumbling[i] : lastAttack[i], elapsed, i, replay.stops) / (rumbling ? ABILITY_RULES.rumblingCooldown : attackInterval(replay.units[i].baseStats.speed))) : 0;
     if (replay.stage === 'budokai' && !replay.units.some((_, j) => (combatFrame?.sides?.[j] ?? (j < (replay.leftCount ?? 5) ? 0 : 1)) !== (combatFrame?.sides?.[i] ?? 0) && combatFrame?.positions?.[j] === combatFrame?.positions?.[i] && hp[j] > 0)) return 0;
     return hp[i] > 0 ? Math.min(1, (rumbling ? combatFrame.rumbling[i] : combatFrame.atb[i]) + activeSeconds(combatFrame.time, elapsed, i, replay.stops) / (rumbling ? ABILITY_RULES.rumblingCooldown : combatFrame.intervals?.[i] ?? attackInterval(combatFrame.speed[i]))) : 0;
@@ -30,22 +37,26 @@
   let announcement = $state('Battle started.');
   let togglePause = $state<() => void>(() => {});
   onMount(() => {
+    if (replay.units.some(unit => unit.boss && bossFor(unit)?.id === 74017)) {
+      for (const form of Object.values(DEOXYS_FORMES)) { const portrait = new Image(); portrait.src = form.image; }
+    }
     let frameIndex = 0;
     let frame = 0, index = 0, previous = performance.now();
     function tick(now: number) {
       if (finished) return;
       const delta = Math.max(0, (now - previous) / 1000); previous = now;
       if (!paused) {
-        elapsed = Math.min(replay.duration, elapsed + delta * (turbo ? 2 : 1));
+        elapsed = advanceReplayTime(elapsed, delta, replay.duration);
         while (index < replay.events.length && replay.events[index].time <= elapsed) {
           const event = replay.events[index];
           hp[event.target] = event.hp;
+          if (event.kind === 'capture') { announcement = replay.units[event.target].name + ' is taken by Gun Fiend.'; index++; continue; }
           if (event.kind === 'environment') { hit[event.target] = index; announcement = 'The Kōtotsu sweeps through both teams.'; index++; continue; }
           if (!event.kind) lastAttack[event.attacker] = event.time;
           if (event.kind === 'rumbling') lastRumbling[event.attacker] = event.time;
           if (event.attackBonus !== undefined) attackBonus[event.attacker] = event.attackBonus;
           if (event.ability && elapsed - event.time < 1.5 && !document.hidden) floats.push({ id: index, unit: event.attacker, title: event.ability, time: elapsed });
-          if (event.kind && !['rumbling', 'burn', 'shrine'].includes(event.kind)) {
+          if (event.kind && !['rumbling', 'burn', 'shrine', 'boss-attack', 'annihilate'].includes(event.kind)) {
             announcement = (replay.units[event.attacker]?.name ?? 'The stage') + ' activates ' + event.ability + '.';
             index++; continue;
           }
@@ -53,7 +64,7 @@
           const from = board.querySelector(`[data-unit="${event.attacker}"]`)?.getBoundingClientRect();
           const to = board.querySelector(`[data-unit="${event.target}"]`)?.getBoundingClientRect();
           const bounds = board.getBoundingClientRect();
-          if (from && to && bounds.width > 0 && bounds.height > 0 && elapsed - event.time < 0.3 && !document.hidden && event.kind !== 'burn') lines.push({ id: index, time: elapsed, x1: (from.x + from.width / 2 - bounds.x) / bounds.width * 1000, y1: (from.y + from.height / 2 - bounds.y) / bounds.height * 1000, x2: (to.x + to.width / 2 - bounds.x) / bounds.width * 1000, y2: (to.y + to.height / 2 - bounds.y) / bounds.height * 1000 });
+          if (from && to && bounds.width > 0 && bounds.height > 0 && elapsed - event.time < 0.3 && !document.hidden && event.kind !== 'burn' && event.kind !== 'annihilate') lines.push({ id: index, time: elapsed, x1: (from.x + from.width / 2 - bounds.x) / bounds.width * 1000, y1: (from.y + from.height / 2 - bounds.y) / bounds.height * 1000, x2: (to.x + to.width / 2 - bounds.x) / bounds.width * 1000, y2: (to.y + to.height / 2 - bounds.y) / bounds.height * 1000 });
           announcement = `${replay.units[event.attacker]?.name ?? 'The stage'} hits ${replay.units[event.target].name} for ${event.damage.toFixed(1)} damage.${event.hp === 0 ? ' Knocked out.' : ''}`;
           index++;
         }
@@ -76,20 +87,21 @@
 <section class="battle" aria-label="Idle battle">
   {#if replay.stage}<StageBanner stage={replay.stage} {elapsed} {finished} />{/if}
   <h2 class="arena">Heaven's Arena : Floor {(replay.floor ?? 0) + (finished && replay.winner === 'left' ? 1 : 0)}</h2>
-  <div class="battle-heading"><h2>Autobattle · {elapsed.toFixed(1)}s{turbo ? ' · 2×' : ''}</h2>{#if !finished}<button onclick={togglePause}>{paused ? 'Resume' : 'Pause'}</button>{/if}</div>
+  <div class="battle-heading"><h2>Autobattle · {elapsed.toFixed(1)}s</h2>{#if !finished}<button onclick={togglePause}>{paused ? 'Resume' : 'Pause'}</button>{/if}</div>
   {#if replay.stage === 'budokai'}<p>Duel wins: {combatFrame?.duelWins?.[0] ?? 0} – {combatFrame?.duelWins?.[1] ?? 0} · First to three</p>{/if}
   {#if replay.stage === 'itomori'}<p>Remaining HP: {[0, 1].map(side => hp.reduce((sum, value, i) => sum + ((i < (replay.leftCount ?? 5) ? 0 : 1) === side ? value / maximumHP[i] * 100 : 0), 0).toFixed(1) + '%').join(' – ')}</p>{/if}
   <div class="board" bind:this={board}>
     {#each [0, 1] as side}<section><h3>{side === 0 ? 'Your team' : 'Opponent'}</h3>
-      {#each replay.units.map((unit, i) => ({ unit, i })).filter(({ i }) => (combatFrame?.witches?.[i] ? (i < (replay.leftCount ?? 5) ? 0 : 1) : combatFrame?.sides?.[i] ?? (i < (replay.leftCount ?? 5) ? 0 : 1)) === side && (combatFrame?.participating?.[i] ?? true)).sort((a, b) => (combatFrame?.positions?.[a.i] ?? a.i) - (combatFrame?.positions?.[b.i] ?? b.i)) as { unit: original, i } (i)}
-        {@const unit = combatFrame?.witches?.[i] ? { ...original, witch: true, name: 'Witch', image: '/images/witch.png' } : original}
+      {#each visibleBattleUnits(replay, combatFrame, side) as i (i)}
+        {@const unit = unitAtFrame(replay, combatFrame, i)}
         <div class="unit" class:boss={unit.boss} class:witch={unit.witch} class:knocked-out={hp[i] <= 0} class:frozen={hp[i] > 0 && replay.stops?.some(stop => stop.owner !== i && (!stop.affected || stop.affected.includes(i)) && elapsed >= stop.start && elapsed < stop.end)}>
-          <div class="portrait" data-unit={i}><EquipmentIcons {unit} />{#key hit[i]}{#if unit.image}<img class:hit={hit[i] >= 0} src={unit.image} alt={unit.name} />{:else}<span class:hit={hit[i] >= 0}>{unit.name}</span>{/if}{/key}{#each floats.filter(item => item.unit === i) as item (item.id)}<b class="ability-float" class:executed={item.title === 'EXECUTED'}>{item.title}</b>{/each}{#if !finished && hp[i] > 0 && (combatFrame?.burnUntil[i] ?? 0) > elapsed}<div class="status-burn"><button aria-label="Burn status" aria-describedby={'burn-' + i}>BURN</button><span role="tooltip" id={'burn-' + i}>{STATUS_RULES.burn.description}</span></div>{/if}{#if !finished && hp[i] > 0 && (combatFrame?.chillUntil?.[i] ?? 0) > elapsed}<div class="status-burn status-chill"><button aria-label="Chill status" aria-describedby={'chill-' + i}>CHILL</button><span role="tooltip" id={'chill-' + i}>{STATUS_RULES.chill.description}</span></div>{/if}</div>
+          <div class="portrait" data-unit={i}><EquipmentIcons {unit} />{#key hit[i]}<div class="portrait-content" class:hit={hit[i] >= 0}><JourneyPortrait {unit} /></div>{/key}{#each floats.filter(item => item.unit === i) as item (item.id)}<b class="ability-float" class:executed={item.title === 'EXECUTED'}>{item.title}</b>{/each}{#if !finished && hp[i] > 0 && (combatFrame?.burnUntil[i] ?? 0) > elapsed}<div class="status-burn"><button aria-label="Burn status" aria-describedby={'burn-' + i}>BURN</button><span role="tooltip" id={'burn-' + i}>{STATUS_RULES.burn.description}</span></div>{/if}{#if !finished && hp[i] > 0 && (combatFrame?.chillUntil?.[i] ?? 0) > elapsed}<div class="status-burn status-chill"><button aria-label="Chill status" aria-describedby={'chill-' + i}>CHILL</button><span role="tooltip" id={'chill-' + i}>{STATUS_RULES.chill.description}</span></div>{/if}{#if !finished && (combatFrame?.negatedUntil?.[i] ?? 0) > elapsed}<div class="status-burn status-negated"><button aria-describedby={'negated-' + i}>NEGATED</button><span role="tooltip" id={'negated-' + i}>{STATUS_RULES.negated.description}</span></div>{/if}{#if !finished && (combatFrame?.curseStacks?.[i] ?? 0) > 0}<div class="status-burn status-curse"><button aria-describedby={'curse-' + i}>CURSE × {combatFrame?.curseStacks?.[i]}</button><span role="tooltip" id={'curse-' + i}>{STATUS_RULES.curse.description}</span></div>{/if}</div>
           <div class="readout">{#if replay.stage === 'budokai'}<span class="atb-label">Duel {(combatFrame?.positions?.[i] ?? 0) + 1}</span>{/if}<strong>{unit.name}<KeywordTags {unit} />{#if unit.boss}<span class="boss-tag">BOSS</span>{/if}</strong><span>HP {Math.ceil(hp[i])} / {Math.ceil(maximumHP[i])}{hp[i] <= 0 ? ' · KO' : ''}</span>
             <progress class="health" aria-label={`${unit.name} HP`} value={hp[i]} max={maximumHP[i]}></progress>
-            <span class="atb-label">ATB</span><progress class="atb" aria-label={`${unit.name} ATB`} max="1" value={gauge(i)}></progress>
+            {#if !implementationsFor(unit).some(ability => ability.cannotAttack)}<span class="atb-label">ATB</span><progress class="atb" aria-label={`${unit.name} ATB`} max="1" value={gauge(i)}></progress>{/if}
+            {#if !unit.boss}{#each combatFrame?.bossGauges?.filter(g => g.owner === i) ?? [] as timing}<span class="atb-label">{timing.title}</span><progress aria-label={timing.title + ' charge'} max="1" value={finished || hp[i] <= 0 ? 0 : Math.min(1,timing.progress + activeSeconds(combatFrame?.time ?? 0,elapsed,i,replay.stops)/timing.cooldown)}></progress>{/each}{/if}{#if unit.boss}<BossAbility {unit} owner={i} frame={combatFrame} {elapsed} stops={replay.stops} {finished} />{/if}
             {#if hasAbility(unit, 40882)}<span class="atb-label">Rumbling</span><progress class="rumbling" aria-label={unit.name + ' Rumbling'} max="1" value={gauge(i, true)}></progress>{/if}
-            {#if hasAbility(unit, 175198)}<span class="atb-label">Malevolent Shrine {combatFrame?.shrineUsed?.[i] ? '· Used' : ''}</span><progress aria-label={unit.name + ' Malevolent Shrine'} max="1" value={!combatFrame?.shrineUsed?.[i] && hp[i] > 0 ? Math.min(1, (combatFrame?.shrine?.[i] ?? 0) + activeSeconds(combatFrame?.time ?? 0, elapsed, i, replay.stops) / ABILITY_RULES.shrineCooldown) : 0}></progress>{/if}
+            {#if hasAbility(unit, 175198)}<span class="atb-label">Malevolent Shrine {combatFrame?.shrineUsed?.[i] ? '· Used' : ''}</span><progress aria-label={unit.name + ' Malevolent Shrine'} max="1" value={!unit.negated && !combatFrame?.shrineUsed?.[i] && hp[i] > 0 ? Math.min(1, (combatFrame?.shrine?.[i] ?? 0) + activeSeconds(combatFrame?.time ?? 0, elapsed, i, replay.stops) / ABILITY_RULES.shrineCooldown) : 0}></progress>{/if}
             {#if combatFrame?.aura[i]}<span>All stats +10% · Driver’s High</span>{/if}
             {#if attackBonus[i] > 0}<span>ATK +{attackBonus[i]} · Kakuja</span>{/if}
           </div>
@@ -103,6 +115,9 @@
 </section>
 
 <style>
+  .portrait-content { position: absolute; inset: 0; }
+  .status-negated { top: 50px; } .status-negated button { background: #555; border-color: #aaa; }
+  .status-curse { top: 74px; } .status-curse button { background: #5c1526; border-color: #c94565; }
   .witch .portrait { border: 2px solid #ffad65; }
   .status-burn { position: absolute; right: -2px; top: -2px; z-index: 7; }
   .status-burn button { min-height: 0; padding: 3px; border: 1px solid #ff773e; background: #923316; color: #fff0df; font: bold 10px var(--mono); }

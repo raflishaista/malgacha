@@ -1,8 +1,9 @@
+export type UnitKeyword = 'TAUNT' | 'LIFESTEAL';
 export type MediaKind = 'anime' | 'manga';
 export type Title = { id: number; kind: MediaKind; name: string; score?: number | null; status: string };
 export type Character = { id: number; name: string; image: string | null; favorites?: number | null; url: string };
 export type PoolCharacter = Character & { titles: Title[]; power?: import('./power').Power };
-export type JourneyCharacter = PoolCharacter & { instanceId: string; baseStats: import('./stats').BaseStats; statRarity: import('./stats').Rarity; rarityOverride?: import('./stats').Rarity; boss?: boolean; soulGem?: boolean; marine?: boolean; witch?: boolean; empty?: boolean; equipment?: import('./items').ItemInstance[]; permanentBoosts?: Partial<import('./stats').BaseStats>; extraAbilities?: number[] };
+export type JourneyCharacter = PoolCharacter & { instanceId: string; baseStats: import('./stats').BaseStats; statRarity: import('./stats').Rarity; rarityOverride?: import('./stats').Rarity; boss?: boolean; bossId?: number; bossForm?: 'normal' | 'attack' | 'defense' | 'speed'; summonOwner?: number; keywords?: UnitKeyword[]; removedAbilities?: number[]; sukunaStacks?: number; fusionImages?: string[]; fusionRoot?: JourneyCharacter; negated?: boolean; battleModifiers?: Partial<import('./stats').BaseStats>; soulGem?: boolean; marine?: boolean; witch?: boolean; empty?: boolean; equipment?: import('./items').ItemInstance[]; permanentBoosts?: Partial<import('./stats').BaseStats>; extraAbilities?: number[] };
 export type ImportState = 'queued' | 'listing' | 'fetching' | 'complete' | 'partial' | 'error' | 'cancelled';
 export type Job = {
   id: string;
@@ -10,10 +11,14 @@ export type Job = {
   scope?: string;
   arenaWins?: number;
   lives?: number;
+  pendingCatch?: JourneyCharacter;
+  wishCandidates?: PoolCharacter[];
+  itemNotice?: string;
+  fusionNotice?: boolean;
   inventory?: import('./items').ItemInstance[];
   itemReward?: { id: string; choices: import('./items').ItemId[] };
   starterTeam?: (PoolCharacter | JourneyCharacter)[];
-  encounter?: { selected?: number; events?: (import('./events').JourneyEvent | null)[]; gameOver?: boolean; stage?: import('./stages').StageId; teams: JourneyCharacter[][]; result?: { left: number; right: number; mode?: 'idle' | 'clout'; winner?: 'left' | 'right' | 'draw' }; replay?: import('./battle/types').BattleReplay; rewardUsed?: boolean };
+  encounter?: { machineUsed?: boolean; selected?: number; events?: (import('./events').JourneyEvent | null)[]; gameOver?: boolean; stage?: import('./stages').StageId; teams: JourneyCharacter[][]; result?: { left: number; right: number; mode?: 'idle' | 'clout'; winner?: 'left' | 'right' | 'draw' }; replay?: import('./battle/types').BattleReplay; rewardUsed?: boolean };
   demo: boolean;
   includePlanned: boolean;
   state: ImportState;

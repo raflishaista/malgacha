@@ -5,15 +5,29 @@
 | File | Responsibility |
 | --- | --- |
 | `abilities/` | One implementation per working passive, plus a registry and balance settings |
+| `abilities/bosses/` | Boss-only hooks, excluded from normal character and Stand Arrow pools |
 | `statuses.ts` | Battle-local Burn/Chill application, refresh, tick, expiry and time-stop behavior |
 | `keywords.ts` | Keyword labels and bonuses, independent of event choices |
 | `modifiers.ts` | Calculation of effective stats from original stats and bonuses |
 | `equipment.ts` | Equipment effect handlers and team support targeting |
+| `item-effects.ts` | Battle-start and landed-hit item hooks, including Behelit and negation |
 | `stage-effects.ts` | Timed environment effects and impact results |
 | `formulas.ts` | Damage, HP conversion, attack intervals and active time |
 | `types.ts` | Saved replay/event/frame types |
 
 The older `autobattle.ts` and `battle-abilities.ts` files re-export these modules so existing callers and tests continue to work. Item and event modules also retain their previous helper exports. Catalog text stays in `data/*.json`; listing an ability does not activate its mechanics.
+
+## Boss battles
+
+Boss tuning, portraits and forme definitions live in `bosses.ts`. Grand Fisher, Kurama, Gun Devil, Deoxys and Sahaquiel have active implementations; Mahoraga remains a preview. Sahaquiel uses local ID `-1001` and a local portrait, not a fabricated MAL record.
+
+The ability context exposes battle-only actions for summons, capture, forme changes and a decisive wipe. Each boss implementation owns its timers and triggers. Lures reuse a single summon slot, and carry explicit Taunt rather than inheriting Masaki's catalog abilities. A living lure shields Grand Fisher from newly targeted single-target and area attacks.
+
+Gun Fiend picks the lowest original base BST, with ties resolved in original slot order. It removes that unit only from the battle and uses its current effective stats plus half the defeated boss's effective stats. The host's equipment and modifiers are folded into these values once; its character passives are not copied. The boss keeps its Gun Fiend identity and cannot capture a second time. The original player roster is untouched.
+
+Replay units contain initial identities plus summon templates. Frames carry optional identity/forme overrides and boss gauges. `presentation.ts` ensures summons are not displayed before their spawn frame. These fields are additive, so earlier saved replays still render. Forme changes replace `battleModifiers`, preserve HP percentage and accumulated ATB, and do not overwrite the original rolled stats.
+
+Sahaquiel's 20-second countdown is an absolute battle deadline. It does not attack, The World does not delay the countdown, and the final wipe bypasses revives. Journeys always plays at two simulation seconds per real second, so the countdown lasts ten real seconds. There is no speed toggle or saved speed preference. `playback.ts` owns the clock conversion; combat timers, floors, reward milestones and reroll counts retain their existing values.
 
 ## Adding an ability
 

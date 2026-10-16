@@ -3,7 +3,7 @@ import type { BaseStats } from '../../stats';
 import type { BattleEvent } from '../types';
 
 export type AbilityState = { used?: boolean; pulses?: number };
-export type TimedActivation = { nextDelay: number; attack?: { kind: 'rumbling' | 'shrine'; title: string } };
+export type TimedActivation = { nextDelay: number; attack?: { kind: 'rumbling' | 'shrine' | 'boss-attack'; title: string; multiplier?: number; single?: boolean; defenseIgnore?: number } };
 /** Abilities use combat actions, not the engine's scheduler or saved team data. */
 export interface AbilityContext {
   readonly units: readonly JourneyCharacter[];
@@ -19,16 +19,27 @@ export interface AbilityContext {
   addAttack(owner: number, amount: number): void;
   stopTime(owner: number, seconds: number): void;
   inflictBurn(owner: number, target: number): void;
+  summonLure(owner: number): void;
+  scheduleAbility(owner: number, ability: number, delay: number): void;
+  captureWeakest(owner: number): boolean;
+  changeForm(owner: number, form: NonNullable<JourneyCharacter['bossForm']>): void;
+  defeatOpponents(owner: number, title: string): void;
 }
 export interface AbilityDefinition {
   id: number;
   cooldown?: number;
   gauge?: 'rumbling' | 'shrine';
   oncePerBattle?: boolean;
+  absoluteTimer?: boolean;
+  cannotAttack?: boolean;
+  protectedBySummon?: boolean;
+  bossGauge?: boolean;
   tracksAttackBonus?: boolean;
   startPriority?: number;
   onStart?(context: AbilityContext, owner: number): void;
   onTimed?(context: AbilityContext, owner: number): TimedActivation;
+  onDeath?(context: AbilityContext, owner: number): boolean;
+  onSummonDeath?(context: AbilityContext, owner: number): void;
   onAttack?(context: AbilityContext, owner: number): { multiplier: number; title?: string };
   onHit?(context: AbilityContext, owner: number, target: number): void;
   onOtherDeath?(context: AbilityContext, owner: number): void;

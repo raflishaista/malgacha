@@ -1,7 +1,7 @@
 import { rollEvents, eventCharacter, MARINE_IDS, CAPTIVE_IDS, type EventAction } from '../events';
 import { sample } from '../pool';
 import { rollStage, type StageId } from '../stages';
-import { applyInventoryAction, inventoryView, newUnit, randomPoolUnit, type InventoryAction } from './inventory';
+import { applyInventoryAction, inventoryView, newUnit, randomPoolUnit, victoryRerollPool, type InventoryAction } from './inventory';
 import { rewardChoices } from '../items';
 import { starterTeam, opponentTeams } from '../journeys';
 import { simulateBattle } from '../battle/engine';
@@ -88,6 +88,7 @@ export class Engine {
       const job = await this.store.getJob(id);
       if (!job || job.scope !== 'journeys' || job.state !== 'complete' || !job.starterTeam) throw new Error('Roll your starting team before departing.');
       if (job.itemReward) throw new Error('Choose your item reward before continuing.');
+      if (job.pendingCatch) throw new Error('Place your caught unit before continuing.');
       if (!job.starterTeam.some(c => !('empty' in c && c.empty))) throw new Error('Your team is empty. Use the testing team reroll to continue.');
       if (job.encounter?.selected !== undefined && job.encounter.events?.[job.encounter.selected] && !['complete'].includes(job.encounter.events[job.encounter.selected]!.status) && !job.encounter.gameOver) throw new Error('Finish your event before continuing.');
       const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
@@ -143,8 +144,8 @@ export class Engine {
         if (index < 0) throw new Error('Team member not found.');
         if (encounter.events?.[encounter.selected ?? -1]?.id === 'marine') throw new Error('Choose your rescued character through the event.');
         const ids = new Set(job.starterTeam.map(c => c.id));
-        const pool = Object.values(job.pool).filter(c => !ids.has(c.id));
-        if (!pool.length) throw new Error('No different characters are available in this pool.');
+        const pool = victoryRerollPool(job, job.starterTeam[index] as JourneyCharacter);
+        if (!pool.length) throw new Error('No different characters match your current reroll filters.');
         const character = pool[randomInt(pool.length)];
         const statRarity = rarityFor(character.favorites) ?? 'N';
         job.starterTeam[index] = { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, () => randomInt(0, 2 ** 32) / 2 ** 32) };
@@ -162,6 +163,12 @@ export class Engine {
           if (encounter.teams[opponent!].some(c => c.boss)) mode = 'idle';
           if (mode === 'idle') {
             encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32, encounter.stage);
+            if (encounter.replay.winner === 'right' && !encounter.machineUsed && job.inventory?.some(item => item.itemId === 'machine')) {
+              encounter.machineUsed = true;
+              const initialAttempt = encounter.replay;
+              encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32, encounter.stage);
+              encounter.replay.initialAttempt = initialAttempt;
+            }
             const { left, right, winner } = encounter.replay;
             encounter.replay.floor = job.arenaWins ?? 0;
             if (winner === 'left') {
@@ -191,7 +198,7 @@ export class Engine {
   }
   private advanceFloor(job: Job) {
     job.arenaWins = (job.arenaWins ?? 0) + 1;
-    if (job.arenaWins % 5 === 0) job.itemReward = { id: randomUUID(), choices: rewardChoices(job.inventory ?? [], () => randomInt(0, 2 ** 32) / 2 ** 32) };
+    if (job.arenaWins % 4 === 0) job.itemReward = { id: randomUUID(), choices: rewardChoices(job.inventory ?? [], () => randomInt(0, 2 ** 32) / 2 ** 32) };
   }
   async journeyEvent(id: string, action: EventAction) {
     await this.init();
@@ -235,6 +242,7 @@ export class Engine {
     job.arenaWins = 0;
     job.inventory = [];
     delete job.itemReward;
+    delete job.pendingCatch; delete job.itemNotice; delete job.fusionNotice; delete job.wishCandidates;
     delete job.encounter;
   }
   async journeyReset(id: string) {
@@ -257,6 +265,25 @@ export class Engine {
         await this.store.saveJob(job);
       }
       return inventoryView(job);
+    });
+  }
+  async journeySearch(id: string, query: string) {
+    await this.init();
+    const source = await this.store.getJob(id);
+    if (!source || source.scope !== 'journeys' || (source.inventory ?? []).filter(item => item.itemId === 'dragonball').length < 7) throw new Error('Collect seven Dragon Balls first.');
+    query = query.trim();
+    if (query.length < 2 || query.length > 80) throw new Error('Enter 2–80 characters.');
+    const local = Object.values(source.pool).filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+    let remote: import('../types').PoolCharacter[] = [];
+    try { remote = this.providers.searchCharacters ? await this.providers.searchCharacters(query) : []; }
+    catch (error) { if (!local.length) throw error; }
+    // Network retries must not hold the global mutation lock or stall other players.
+    return this.serialize(async () => {
+      const job = await this.store.getJob(id);
+      if (!job || job.scope !== 'journeys' || (job.inventory ?? []).filter(item => item.itemId === 'dragonball').length < 7) throw new Error('Collect seven Dragon Balls first.');
+      job.wishCandidates = [...new Map([...remote, ...local].map(c => [c.id, c])).values()].slice(0, 12);
+      await this.store.saveJob(job);
+      return job.wishCandidates;
     });
   }
   async cancel(id: string) {
