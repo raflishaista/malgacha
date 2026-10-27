@@ -14,7 +14,7 @@ export const ITEM_COLORS: Record<ItemRarity, string> = { R: '#64aaff', SR: '#c6c
 export const CATCH_RATES = {
   pokeball: { N: .9, R: .6, SR: .3, SSR: .1, UR: .01 },
   greatball: { N: 1, R: .8, SR: .5, SSR: .3, UR: .05 },
-  ultraball: { N: 1, R: 1, SR: .8, SSR: .5, UR: .1 },
+  ultraball: { N: 1, R: 1, SR: .8, SSR: .5, UR: .15 },
   masterball: { N: 1, R: 1, SR: 1, SSR: 1, UR: 1 }
 };
 export const isBall = (id: ItemId): id is keyof typeof CATCH_RATES => id in CATCH_RATES;

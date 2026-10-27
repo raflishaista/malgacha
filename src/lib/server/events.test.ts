@@ -58,7 +58,7 @@ it('Marine battle losses cost one life and give no rescue', async () => {
   const { engine, store, id, team } = await setup('marine');
   await engine.journeyEvent(id, { index: 0, choice: 'yes' });
   const saved = (await store.getJob(id))!;
-  saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 1, attack: 1, defense: 1, speed: 1 } })); await store.saveJob(saved);
+  saved.starterTeam = team.map((c,i) => ({ ...c, id:900000+i, extraAbilities:[], baseStats: { hp: 1, attack: 1, defense: 1, speed: 1 } })); await store.saveJob(saved);
   const fight = await engine.journeyBattle(id, 0, undefined, 'idle');
   expect(fight.lives).toBe(2); expect(fight.encounter!.events![0]!.status).toBe('complete');
   expect(fight.encounter!.events![0]!.reward).toBeUndefined();

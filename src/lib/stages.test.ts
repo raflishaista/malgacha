@@ -3,7 +3,7 @@ import { simulateBattle, attackInterval } from './autobattle';
 import { rollStage, STAGES, type StageId } from './stages';
 import type { JourneyCharacter } from './types';
 
-const team = (size = 5): JourneyCharacter[] => Array.from({ length: size }, (_, i) => ({ id: i + 1, name: `Unit ${i}`, instanceId: `${i}`, image: null, url: '', titles: [], statRarity: 'N', baseStats: { hp: 500, attack: 125, defense: 125, speed: 125 } }));
+const team = (size = 5): JourneyCharacter[] => Array.from({ length: size }, (_, i) => ({ id: 900000+i, name: `Unit ${i}`, instanceId: `${i}`, image: null, url: '', titles: [], statRarity: 'N', baseStats: { hp: 500, attack: 125, defense: 125, speed: 125 } }));
 const rng = (initial = 123) => { let seed = initial; return () => ((seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0) / 2 ** 32); };
 
 it('splits stage rolls equally between effects and scenery, uniformly within each group', () => {

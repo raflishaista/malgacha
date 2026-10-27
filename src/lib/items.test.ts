@@ -75,14 +75,14 @@ it('extra units, empty slots and equipment participate in combat without editing
   expect(replay.leftCount).toBe(6); expect(replay.units).toHaveLength(11);
   expect(replay.frames![0].speed[0]).toBe(team[0].baseStats.speed + 15); expect(team).toEqual(before);
 });
-it('granted timed abilities run independently and Shrine pulses five times only', () => {
+it('granted timed abilities run independently and Shrine pulses three times only', () => {
   const team = Array.from({ length: 5 }, (_, i) => unit(90000 + i));
   team[0].extraAbilities = [175198, 22036, 40882];
   const opponents = Array.from({ length: 5 }, (_, i) => ({ ...unit(92000 + i), baseStats: { hp: 10000, attack: 1, defense: 125, speed: 125 } }));
   expect(hasAbility(team[0], 175198)).toBe(true);
   const replay = simulateBattle(team, opponents, () => 0.2);
   const shrine = replay.events.filter(e => e.kind === 'shrine');
-  expect(shrine).toHaveLength(25); expect(new Set(shrine.map(e => e.time)).size).toBe(5);
+  expect(shrine).toHaveLength(15); expect(new Set(shrine.map(e => e.time)).size).toBe(3);
   expect(replay.events.some(e => e.ability === 'Koyomi Vamp')).toBe(true);
   expect(replay.events.some(e => e.ability === 'Rumbling')).toBe(true);
 });

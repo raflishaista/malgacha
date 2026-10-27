@@ -18,11 +18,14 @@ import { gunDevil } from './bosses/gun-devil';
 import { deoxys } from './bosses/deoxys';
 import { sahaquiel } from './bosses/sahaquiel';
 import { hostCleave, hostShrine } from './sukuna-host';
+import {thresholdAbilities} from './thresholds';
+import {timedCharacters} from './timed';
+import {activeCharacters} from './active';
 
 export { ABILITY_RULES } from './config';
 export { abilityIds, hasAbility } from './catalog';
 export type { AbilityContext, AbilityDefinition, AbilityState } from './types';
-const definitions = [blackFlash, theWorld, kakuja, rumbling, asceticBlaze, koyomiVamp, turboGranny, godHand, forbiddenMagic, driversHigh, chainsawHeart, malevolentShrine];
+const definitions = [blackFlash, theWorld, kakuja, rumbling, asceticBlaze, koyomiVamp, turboGranny, godHand, forbiddenMagic, driversHigh, chainsawHeart, malevolentShrine,...thresholdAbilities,...timedCharacters,...activeCharacters];
 const bossDefinitions = [grandFisher, kurama, gunDevil, deoxys, sahaquiel];
 export const BOSS_ABILITIES: ReadonlyMap<number, AbilityDefinition> = new Map(bossDefinitions.map(ability => [ability.id, ability]));
 export const ABILITIES: ReadonlyMap<number, AbilityDefinition> = new Map([...definitions, ...bossDefinitions, hostCleave, hostShrine].map(ability => [ability.id, ability]));
@@ -36,12 +39,17 @@ export const timedAbilities = [...definitions, ...bossDefinitions, hostCleave, h
 export const abilityCooldown = (unit: AbilityHolder) => Math.min(Infinity, ...implementationsFor(unit).flatMap(ability => ability.cooldown === undefined ? [] : [ability.cooldown]));
 export const incomingDamageMultiplier = (unit: AbilityHolder) => implementationsFor(unit).reduce((multiplier, ability) => multiplier * (1 - (ability.damageReduction ?? 0)), 1);
 export const DEFAULT_AURA_MULTIPLIER = driversHigh.auraMultiplier!;
-export function attackEffectsFor(unit: AbilityHolder, context: AbilityContext, owner: number) {
+export function attackEffectsFor(unit: AbilityHolder, context: AbilityContext, owner: number, targets:number[]=context.enemies(owner)) {
   let multiplier = 1;
+  let reflectedBy:number|undefined;
   const titles: string[] = [];
   for (const ability of implementationsFor(unit)) {
     const effect = ability.onAttack?.(context, owner);
-    if (effect) { multiplier *= effect.multiplier; if (effect.title) titles.push(effect.title); }
+    if (effect) {
+      let allowed=true;
+      if(effect.title)allowed=context.activate(owner,ability.id,targets,actor=>{if(actor!==owner)reflectedBy=actor;});
+      if(allowed){multiplier *= effect.multiplier; if (effect.title) titles.push(effect.title);}
+    }
   }
-  return { multiplier, title: titles.length ? titles.join(' + ') : undefined };
+  return { multiplier, reflectedBy, title: titles.length ? titles.join(' + ') : undefined };
 }

@@ -52,7 +52,7 @@
     },
     "tracen": {
       "name": "Tracen Academy",
-      "description": "No effect.",
+      "description": "Random effects periodically appear. (WIP)",
       "effect": false
     },
     "tootsuki": {

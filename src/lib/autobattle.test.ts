@@ -4,7 +4,7 @@ import { generateBaseStats, type Rarity } from './stats';
 import type { JourneyCharacter } from './types';
 let seed = 9234;
 const random = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 2 ** 32; };
-const team = (rarity: Rarity = 'N'): JourneyCharacter[] => Array.from({ length: 5 }, (_, i) => ({ id: i, instanceId: String(i), name: String(i), image: null, url: '', titles: [], statRarity: rarity, baseStats: generateBaseStats(rarity, random) }));
+const team = (rarity: Rarity = 'N'): JourneyCharacter[] => Array.from({ length: 5 }, (_, i) => ({ id: 900000+i, instanceId: String(i), name: String(i), image: null, url: '', titles: [], statRarity: rarity, baseStats: generateBaseStats(rarity, random) }));
 it('uses the pictured damage formula and separate speed/HP conversions', () => {
   expect(attackDamage(100, 100)).toBe(25);
   expect(attackDamage(200, 100)).toBeCloseTo(100 / 3);
@@ -44,7 +44,7 @@ it('allows a smaller team after a permanent death', () => expect(simulateBattle(
 function fixedTeams() {
   return [team(), team()].map(side => side.map(c => ({ ...c, baseStats: { hp: 500, attack: 125, defense: 125, speed: 125 } })));
 }
-it('Black Flash doubles final damage at 30%, on either team', () => {
+it('Black Flash triples final damage at 30%, on either team', () => {
   for (const side of [0, 1]) {
     for (const [roll, critical] of [[0.299, true], [0.3, false]] as const) {
       const teams = fixedTeams(); teams[side][0].id = 163847;
@@ -52,7 +52,7 @@ it('Black Flash doubles final damage at 30%, on either team', () => {
       const replay = simulateBattle(teams[0], teams[1], () => roll);
       const first = replay.events[0];
       expect(first.attacker).toBe(side * 5);
-      expect(first.damage).toBe(critical ? 50 : 25);
+      expect(first.damage).toBe(critical ? 75 : 25);
       expect(first.ability).toBe(critical ? 'Black Flash' : undefined);
     }
   }

@@ -27,7 +27,7 @@ Gun Fiend picks the lowest original base BST, with ties resolved in original slo
 
 Replay units contain initial identities plus summon templates. Frames carry optional identity/forme overrides and boss gauges. `presentation.ts` ensures summons are not displayed before their spawn frame. These fields are additive, so earlier saved replays still render. Forme changes replace `battleModifiers`, preserve HP percentage and accumulated ATB, and do not overwrite the original rolled stats.
 
-Sahaquiel's 20-second countdown is an absolute battle deadline. It does not attack, The World does not delay the countdown, and the final wipe bypasses revives. Journeys always plays at two simulation seconds per real second, so the countdown lasts ten real seconds. There is no speed toggle or saved speed preference. `playback.ts` owns the clock conversion; combat timers, floors, reward milestones and reroll counts retain their existing values.
+Sahaquiel's 20-second countdown is an absolute battle deadline. It does not attack, The World does not delay the countdown, and the final wipe bypasses revives. Metavision may cancel the one-use deadline before it fires. Journeys always plays at two simulation seconds per real second, so the countdown lasts ten real seconds. There is no speed toggle or saved speed preference. `playback.ts` owns the clock conversion; combat timers, floors, reward milestones and reroll counts retain their existing values.
 
 ## Adding an ability
 
@@ -72,4 +72,4 @@ Time stop pauses character-inflicted Burn, while stage-inflicted Burn continues.
 
 ## Verification
 
-Run `npm test` and `npm run check`. `regression.test.ts` compares 78 seeded full replays captured before this refactor across every stage, multiple passives, equipment, keywords and extra slots. It checks frames, event order, damage and winners. Intentional future balance changes may require reviewing and updating that fixture alongside the individual mechanic tests.
+Run `npm test` and `npm run check`. `regression.test.ts` retains the 26 plain-combat golden replays and checks deterministic current behavior for 52 mixed-ability scenarios. Black Flash and Sukuna now intentionally differ from the original balance. See `CHARACTER_ABILITIES.md` for the new hooks, defaults and interaction rules.

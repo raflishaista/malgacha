@@ -32,6 +32,21 @@ const second: Title = { ...title, kind: 'manga', name: 'Second' };
 const character = { id: 42, name: 'Shared character', image: null, url: 'https://myanimelist.net/character/42' };
 
 describe('durable imports', () => {
+  it('One For All carries accumulated +3 bonuses and other passives through consecutive victory rerolls', async()=>{
+    const store=await setup(),engine=new Engine(store,{lists:async()=>[],cast:async()=>[]},0),job=await engine.create('demo',true,true,'journeys');await finished(store,job.id);const team=await engine.journeyTeam(job.id);let saved=(await store.getJob(job.id))!;
+    saved.starterTeam=team.map((c,i)=>({...c,id:900000+i}));const holder=saved.starterTeam[0] as typeof team[0];holder.id=117921;holder.extraAbilities=[22036];holder.permanentBoosts={hp:3,attack:3,defense:3,speed:3};saved.encounter={teams:[team],result:{left:5,right:0,winner:'left'},selected:0};await store.saveJob(saved);
+    const first=await engine.journeyBattle(job.id,0,holder.instanceId,'idle');const next=first.characters![0] as typeof team[0];expect(next.extraAbilities).toEqual(expect.arrayContaining([117921,22036]));expect(next.permanentBoosts?.attack).toBe(6);
+    saved=(await store.getJob(job.id))!;saved.encounter!.rewardUsed=false;await store.saveJob(saved);const second=await engine.journeyBattle(job.id,0,next.instanceId,'idle');expect((second.characters![0] as typeof team[0]).permanentBoosts?.attack).toBe(9);
+  });
+  it('Reset replays a loss once without a relic and charges only the final loss',async()=>{
+    const store=await setup(),engine=new Engine(store,{lists:async()=>[],cast:async()=>[]},0),job=await engine.create('demo',true,true,'journeys');await finished(store,job.id);const team=await engine.journeyTeam(job.id),saved=(await store.getJob(job.id))!;
+    saved.starterTeam=team.map((c,i)=>({...c,id:i===0?38005:900000+i}));saved.encounter={teams:[[{...team[0],id:-1001,instanceId:'angel',boss:true,baseStats:{hp:10000000,attack:125,defense:125,speed:125}}]]};await store.saveJob(saved);const b=await engine.journeyBattle(job.id,0,undefined,'idle');expect(b.replay?.initialAttempt?.resetSide).toBe(0);expect(b.lives).toBe(2);expect(b.inventory).toHaveLength(0);expect((await engine.journeyBattle(job.id,0,undefined,'idle')).lives).toBe(2);
+  });
+  it('Zenkai permanent gains persist once and saved base stats remain untouched',async()=>{
+    const store=await setup(),engine=new Engine(store,{lists:async()=>[],cast:async()=>[]},0),job=await engine.create('demo',true,true,'journeys');await finished(store,job.id);const team=await engine.journeyTeam(job.id),saved=(await store.getJob(job.id))!;
+    saved.starterTeam=team.map((c,i)=>({...c,id:i===0?913:900000+i,baseStats:{hp:i===0?260:10000,attack:125,defense:125,speed:125},...(i===0?{keywords:['TAUNT' as const]}:{})}));const original=(saved.starterTeam[0] as typeof team[0]).baseStats;saved.encounter={teams:[team.map((c,i)=>({...c,id:910000+i,baseStats:{hp:10000,attack:125,defense:125,speed:125}}))]};await store.saveJob(saved);
+    const b=await engine.journeyBattle(job.id,0,undefined,'idle');expect((b.characters![0] as typeof team[0]).permanentBoosts?.attack).toBe(5);expect((b.characters![0] as typeof team[0]).baseStats).toEqual(original);expect(((await engine.journeyBattle(job.id,0,undefined,'idle')).characters![0] as typeof team[0]).permanentBoosts?.attack).toBe(5);
+  });
   it('persists searched wish candidates separately and atomically spends seven balls on a replacement', async () => {
     const store=await setup(), searchCharacters=vi.fn(async()=>[{id:6127,name:'Shen Long',favorites:12000,image:null,url:'',titles:[]}]);
     const providers={lists:vi.fn(async()=>[]),cast:vi.fn(async()=>[]),searchCharacters};

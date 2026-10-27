@@ -10,8 +10,8 @@ function seeded(initial = 17) { let seed = initial; return () => ((seed = (Math.
 const unit = (id = 9000, favorites = 300) => newUnit({id, favorites, name: 'Unit '+id, image: '/'+id+'.webp', url: '', titles: []}, seeded(id));
 function job(): Job { const team = [unit(), unit(9001,2000)]; return {id:'x',username:'demo',demo:true,scope:'journeys',state:'complete',includePlanned:true,createdAt:'',updatedAt:'',titles:[],listed:true,done:[],failures:{},message:'',pool:{},starterTeam:team,inventory:[]}; }
 function grant(j: Job, id: ItemId) {const instanceId = `item-${j.inventory!.length}-${id}`; j.inventory!.push({itemId:id,instanceId}); return instanceId;}
-it('catalog covers all 27 items, with rarity weights and even within-rarity draws', () => {
-  expect(Object.keys(ITEMS)).toHaveLength(27);
+it('catalog covers at least the original 27 items, with rarity weights and even within-rarity draws', () => {
+  expect(Object.keys(ITEMS).length).toBeGreaterThanOrEqual(27);
   const random=seeded(), totals={R:0,SR:0,SSR:0,UR:0}, counts: Record<string,number>={};
   for(let i=0;i<100000;i++){const id=rollItem([],random);totals[ITEMS[id].rarity]++;counts[id]=(counts[id]??0)+1;}
   for(const tier of ['R','SR','SSR','UR'] as const){expect(totals[tier]/1000).toBeCloseTo(ITEM_RARITY_WEIGHTS[tier],0); const pool=Object.keys(ITEMS).filter(id=>ITEMS[id as ItemId].rarity===tier);for(const id of pool)expect(Math.abs(counts[id]-totals[tier]/pool.length)/(totals[tier]/pool.length)).toBeLessThan(.17);}

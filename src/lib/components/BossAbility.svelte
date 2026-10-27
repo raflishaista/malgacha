@@ -3,7 +3,7 @@
   import { activeSeconds } from '$lib/battle/formulas';
   import type { BattleFrame, TimeStop } from '$lib/battle/types';
   import type { JourneyCharacter } from '$lib/types';
-  let { unit, owner, frame, elapsed = 0, stops = [], finished = false }: { unit: JourneyCharacter; owner?: number; frame?: BattleFrame; elapsed?: number; stops?: TimeStop[]; finished?: boolean } = $props();
+  let { unit, owner, frame, elapsed = 0, stops = [], finished = false, gaugeOnly = false }: { unit: JourneyCharacter; owner?: number; frame?: BattleFrame; elapsed?: number; stops?: TimeStop[]; finished?: boolean; gaugeOnly?: boolean } = $props();
   const boss = $derived(bossFor(unit));
   const timing = $derived(frame?.bossGauges?.find(gauge => gauge.owner === owner));
   const delta = $derived(!timing || owner === undefined ? 0 : timing.absolute ? Math.max(0, elapsed - (frame?.time ?? 0)) : activeSeconds(frame?.time ?? 0, elapsed, owner, stops));
@@ -11,11 +11,11 @@
   const progress = $derived(timing ? Math.min(1, timing.progress + delta / timing.cooldown) : 0);
 </script>
 {#if boss}
-  <div class="boss-ability">
+  {#if !gaugeOnly}<div class="boss-ability">
     <button type="button" aria-describedby={'boss-ability-' + unit.instanceId}>{boss.title}</button>
     <div class="description" role="tooltip" id={'boss-ability-' + unit.instanceId}><strong>{boss.title}</strong><p>{boss.description}</p>{#if !boss.active}<p>Preview only. This boss ability is not implemented yet.</p>{/if}</div>
   </div>
-  {#if boss.id === 74017}<p class="forme">{DEOXYS_FORMES[unit.bossForm ?? 'normal'].name}</p>{/if}
+  {#if boss.id === 74017}<p class="forme">{DEOXYS_FORMES[unit.bossForm ?? 'normal'].name}</p>{/if}{/if}
   {#if timing && !finished}
     <span class="timer">{timing.title} · {remaining.toFixed(1)}s</span>
     <progress class:deadline={timing.absolute} aria-label={timing.title + (timing.absolute ? ' countdown' : ' charge')} max="1" value={progress}></progress>

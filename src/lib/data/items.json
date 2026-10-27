@@ -28,11 +28,18 @@
     "description": "Adds one Host of Sukuna stack. At 5: King of Poison. At 10: Cleave. At 15: Incomplete Malevolent Shrine. At 20: incarnate as Sukuna, upgrading both attacks. Stacks are lost on replacement."
   },
   "coin": {
-    "name": "Shiraishi Coin",
+    "name": "Tattoed Inmate Skin",
     "category": "relic",
     "rarity": "R",
     "unique": false,
-    "description": "Each coin raises the minimum favorites filter for victory rerolls by 50. Stacks."
+    "description": "Each skin guides to treasure, raising the minimum favorites filter for victory rerolls by 10. Stacks."
+  },
+  "senzubean": {
+    "name": "Senzu Bean (WIP)",
+    "category": "consumable",
+    "rarity": "R",
+    "unique": false,
+    "description": "On consumption, increase 1 life. Unable to use when at full life."
   },
   "greatball": {
     "name": "Great Ball",

@@ -4,6 +4,7 @@ import { rollStage, type StageId } from '../stages';
 import { applyInventoryAction, inventoryView, newUnit, randomPoolUnit, victoryRerollPool, type InventoryAction } from './inventory';
 import { rewardChoices } from '../items';
 import { starterTeam, opponentTeams } from '../journeys';
+import {abilityIds} from '../battle/abilities/catalog';
 import { simulateBattle } from '../battle/engine';
 import { isBossFloor, rollBoss } from '../bosses';
 import { generateBaseStats } from '../stats';
@@ -148,7 +149,12 @@ export class Engine {
         if (!pool.length) throw new Error('No different characters match your current reroll filters.');
         const character = pool[randomInt(pool.length)];
         const statRarity = rarityFor(character.favorites) ?? 'N';
-        job.starterTeam[index] = { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, () => randomInt(0, 2 ** 32) / 2 ** 32) };
+        const previous=job.starterTeam[index] as JourneyCharacter;
+        const next:JourneyCharacter={ ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, () => randomInt(0, 2 ** 32) / 2 ** 32) };
+        if(abilityIds(previous).includes(117921)){
+          next.extraAbilities=[...new Set(abilityIds(previous))];next.permanentBoosts=Object.fromEntries(['hp','attack','defense','speed'].map(key=>[key,(previous.permanentBoosts?.[key as keyof typeof previous.permanentBoosts]??0)+3]));
+        }
+        job.starterTeam[index] = next;
         encounter.rewardUsed = true;
       } else {
         if (!Number.isInteger(opponent) || opponent! < 0 || opponent! >= encounter.teams.length) throw new Error('Choose an opponent.');
@@ -163,13 +169,16 @@ export class Engine {
           if (encounter.teams[opponent!].some(c => c.boss)) mode = 'idle';
           if (mode === 'idle') {
             encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32, encounter.stage);
-            if (encounter.replay.winner === 'right' && !encounter.machineUsed && job.inventory?.some(item => item.itemId === 'machine')) {
+            if (!encounter.machineUsed && (encounter.replay.resetSide!==undefined || encounter.replay.winner === 'right' && job.inventory?.some(item => item.itemId === 'machine'))) {
               encounter.machineUsed = true;
               const initialAttempt = encounter.replay;
+              initialAttempt.floor=job.arenaWins??0;
               encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32, encounter.stage);
               encounter.replay.initialAttempt = initialAttempt;
+              encounter.replay.retryTitle=initialAttempt.resetSide!==undefined?'Reset':'Future Machine No. 8';
             }
             const { left, right, winner } = encounter.replay;
+            for(const unit of job.starterTeam as JourneyCharacter[]){const update=encounter.replay.updates?.[unit.instanceId];if(update)Object.assign(unit,update);}
             encounter.replay.floor = job.arenaWins ?? 0;
             if (winner === 'left') {
               this.advanceFloor(job);

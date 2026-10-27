@@ -139,7 +139,7 @@
     finally { busy = false; }
   }
   function finishBattle() {
-    if (retryReplay) { replay = retryReplay; retryReplay = null; itemNotice = 'Future Machine No. 8 resets the battle. No life was lost on the first attempt.'; return; }
+    if (retryReplay) { replay = retryReplay; retryReplay = null; itemNotice = (replay.retryTitle ?? 'Future Machine No. 8') + ' resets the battle. The first attempt costs no life.'; return; }
     playing = false; fought = true; lives = pendingLives;
     if (gameOver) resetNotice = 'Game over. A new run is ready: three lives, a new team, no items, and the floor counter reset.';
     if (selectedEvent?.status === 'reward') eventOpen = true;

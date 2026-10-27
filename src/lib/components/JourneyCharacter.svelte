@@ -40,6 +40,7 @@
       </div>
     </div>
   {/if}{/each}
+  {#if abilityIds(character).includes(2867)}<p>GANTZ: {character.gantzPoints ?? 0} points</p>{/if}
   {#if character.boss}<BossAbility unit={character} />{/if}
   {#if character.sukunaStacks}<HostAbilities stacks={character.sukunaStacks} />{/if}
   <details class="base-stats">

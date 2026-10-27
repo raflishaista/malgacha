@@ -15,7 +15,7 @@ it('rolls configured HP and exact bounded combat stats', () => {
   }
 });
 it('keeps the unimplemented Mahoraga ability as a preview with normal attacks', () => {
-  const players = Array.from({ length: 5 }, (_, i) => ({ ...rollBoss(String(i)), boss: false, id: i }));
+  const players = Array.from({ length: 5 }, (_, i) => ({ ...rollBoss(String(i)), boss: false, id: 900000+i }));
   for (const entry of BOSSES.filter(boss => !boss.active)) {
     const boss = { ...rollBoss('boss'), id: entry.id };
     const replay = simulateBattle(players, [boss]);

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import BattleEffectTags from './BattleEffectTags.svelte';
+  import BattleAbilityList from './BattleAbilityList.svelte';
   import JourneyPortrait from './JourneyPortrait.svelte';
   import BossAbility from './BossAbility.svelte';
   import { unitAtFrame, visibleBattleUnits } from '$lib/battle/presentation';
@@ -9,7 +11,7 @@
   import StageBanner from './StageBanner.svelte';
   import EquipmentIcons from './EquipmentIcons.svelte';
   import { hasAbility } from '$lib/battle/abilities/catalog';
-  import { STATUS_RULES } from '$lib/battle/statuses';
+
   import { onMount, untrack } from 'svelte';
   import { attackInterval, battleHP, activeSeconds } from '$lib/battle/formulas';
   import { ABILITY_RULES } from '$lib/battle/abilities/config';
@@ -18,6 +20,7 @@
   let combatFrame = $state<BattleFrame | undefined>(untrack(() => replay.frames?.[0]));
   const maximumHP = $derived(combatFrame?.maxHP ?? replay.units.map(c => battleHP(c.baseStats.hp)));
   function gauge(i: number, rumbling = false) {
+    if (!rumbling && combatFrame?.inactive?.[i]) return combatFrame.atb[i];
     if (rumbling && combatFrame?.unitOverrides?.[i]?.negated) return 0;
     if (!combatFrame) return hp[i] > 0 ? Math.min(1, activeSeconds(rumbling ? lastRumbling[i] : lastAttack[i], elapsed, i, replay.stops) / (rumbling ? ABILITY_RULES.rumblingCooldown : attackInterval(replay.units[i].baseStats.speed))) : 0;
     if (replay.stage === 'budokai' && !replay.units.some((_, j) => (combatFrame?.sides?.[j] ?? (j < (replay.leftCount ?? 5) ? 0 : 1)) !== (combatFrame?.sides?.[i] ?? 0) && combatFrame?.positions?.[j] === combatFrame?.positions?.[i] && hp[j] > 0)) return 0;
@@ -32,6 +35,7 @@
   let hit = $state(Array(untrack(() => replay.units.length)).fill(-1) as number[]);
   let lines = $state<{ id: number; time: number; x1: number; y1: number; x2: number; y2: number }[]>([]);
   let board: HTMLDivElement;
+  let linkLines = $state<{source:number;target:number;x1:number;y1:number;x2:number;y2:number}[]>([]);
   let paused = $state(false);
   let finished = $state(false);
   let announcement = $state('Battle started.');
@@ -55,7 +59,7 @@
           if (!event.kind) lastAttack[event.attacker] = event.time;
           if (event.kind === 'rumbling') lastRumbling[event.attacker] = event.time;
           if (event.attackBonus !== undefined) attackBonus[event.attacker] = event.attackBonus;
-          if (event.ability && elapsed - event.time < 1.5 && !document.hidden) floats.push({ id: index, unit: event.attacker, title: event.ability, time: elapsed });
+          if (event.ability && elapsed - event.time < 6 && !document.hidden) { if (!floats.some(f=>f.unit===event.attacker&&f.title===event.ability&&elapsed-f.time<.5)) floats.push({ id: index, unit: event.attacker, title: event.ability, time: elapsed }); }
           if (event.kind && !['rumbling', 'burn', 'shrine', 'boss-attack', 'annihilate'].includes(event.kind)) {
             announcement = (replay.units[event.attacker]?.name ?? 'The stage') + ' activates ' + event.ability + '.';
             index++; continue;
@@ -69,10 +73,11 @@
           index++;
         }
         while (replay.frames && frameIndex < replay.frames.length && replay.frames[frameIndex].time <= elapsed) { combatFrame = replay.frames[frameIndex++]; hp = [...combatFrame.hp]; }
-        floats = floats.filter(item => elapsed - item.time < 1.5);
+        floats = floats.filter(item => elapsed - item.time < 6);
         lines = lines.filter(line => elapsed - line.time < 0.3);
         if (elapsed >= replay.duration) { finished = true; onfinish(); return; }
       }
+      if (board) { const bounds=board.getBoundingClientRect(); linkLines=Object.entries(combatFrame?.links??{}).flatMap(([source,target])=>{const from=board.querySelector(`[data-unit="${source}"]`)?.getBoundingClientRect(),to=board.querySelector(`[data-unit="${target}"]`)?.getBoundingClientRect();return from&&to&&bounds.width&&bounds.height?[{source:Number(source),target,x1:(from.x+from.width/2-bounds.x)/bounds.width*1000,y1:(from.y+from.height/2-bounds.y)/bounds.height*1000,x2:(to.x+to.width/2-bounds.x)/bounds.width*1000,y2:(to.y+to.height/2-bounds.y)/bounds.height*1000}]:[];}); }
       frame = requestAnimationFrame(tick);
     }
     function sync() { cancelAnimationFrame(frame); tick(performance.now()); }
@@ -89,51 +94,47 @@
   <h2 class="arena">Heaven's Arena : Floor {(replay.floor ?? 0) + (finished && replay.winner === 'left' ? 1 : 0)}</h2>
   <div class="battle-heading"><h2>Autobattle · {elapsed.toFixed(1)}s</h2>{#if !finished}<button onclick={togglePause}>{paused ? 'Resume' : 'Pause'}</button>{/if}</div>
   {#if replay.stage === 'budokai'}<p>Duel wins: {combatFrame?.duelWins?.[0] ?? 0} – {combatFrame?.duelWins?.[1] ?? 0} · First to three</p>{/if}
-  {#if replay.stage === 'itomori'}<p>Remaining HP: {[0, 1].map(side => hp.reduce((sum, value, i) => sum + ((i < (replay.leftCount ?? 5) ? 0 : 1) === side ? value / maximumHP[i] * 100 : 0), 0).toFixed(1) + '%').join(' – ')}</p>{/if}
+  {#if replay.stage === 'itomori'}<p>Remaining HP: {[0, 1].map(side => hp.reduce((sum, value, i) => sum + ((combatFrame?.sides?.[i] ?? (i < (replay.leftCount ?? 5) ? 0 : 1)) === side && (combatFrame?.participating?.[i] ?? true) ? value / maximumHP[i] * 100 : 0), 0).toFixed(1) + '%').join(' – ')}</p>{/if}
   <div class="board" bind:this={board}>
     {#each [0, 1] as side}<section><h3>{side === 0 ? 'Your team' : 'Opponent'}</h3>
       {#each visibleBattleUnits(replay, combatFrame, side) as i (i)}
         {@const unit = unitAtFrame(replay, combatFrame, i)}
-        <div class="unit" class:boss={unit.boss} class:witch={unit.witch} class:knocked-out={hp[i] <= 0} class:frozen={hp[i] > 0 && replay.stops?.some(stop => stop.owner !== i && (!stop.affected || stop.affected.includes(i)) && elapsed >= stop.start && elapsed < stop.end)}>
-          <div class="portrait" data-unit={i}><EquipmentIcons {unit} />{#key hit[i]}<div class="portrait-content" class:hit={hit[i] >= 0}><JourneyPortrait {unit} /></div>{/key}{#each floats.filter(item => item.unit === i) as item (item.id)}<b class="ability-float" class:executed={item.title === 'EXECUTED'}>{item.title}</b>{/each}{#if !finished && hp[i] > 0 && (combatFrame?.burnUntil[i] ?? 0) > elapsed}<div class="status-burn"><button aria-label="Burn status" aria-describedby={'burn-' + i}>BURN</button><span role="tooltip" id={'burn-' + i}>{STATUS_RULES.burn.description}</span></div>{/if}{#if !finished && hp[i] > 0 && (combatFrame?.chillUntil?.[i] ?? 0) > elapsed}<div class="status-burn status-chill"><button aria-label="Chill status" aria-describedby={'chill-' + i}>CHILL</button><span role="tooltip" id={'chill-' + i}>{STATUS_RULES.chill.description}</span></div>{/if}{#if !finished && (combatFrame?.negatedUntil?.[i] ?? 0) > elapsed}<div class="status-burn status-negated"><button aria-describedby={'negated-' + i}>NEGATED</button><span role="tooltip" id={'negated-' + i}>{STATUS_RULES.negated.description}</span></div>{/if}{#if !finished && (combatFrame?.curseStacks?.[i] ?? 0) > 0}<div class="status-burn status-curse"><button aria-describedby={'curse-' + i}>CURSE × {combatFrame?.curseStacks?.[i]}</button><span role="tooltip" id={'curse-' + i}>{STATUS_RULES.curse.description}</span></div>{/if}</div>
+        <div class="unit" class:boss={unit.boss} class:phased={combatFrame?.effects?.[i]?.some(e=>e.id === 'STUN' && e.until > elapsed) && combatFrame?.effects?.[i]?.some(e=>e.id === 'INVINCIBLE' && e.until > elapsed)} class:witch={unit.witch} class:knocked-out={hp[i] <= 0} class:frozen={hp[i] > 0 && replay.stops?.some(stop => stop.owner !== i && (!stop.affected || stop.affected.includes(i)) && elapsed >= stop.start && elapsed < stop.end)}>
+          <div class="portrait" data-unit={i}><EquipmentIcons {unit} />{#key hit[i]}<div class="portrait-content" class:hit={hit[i] >= 0}><JourneyPortrait {unit} /></div>{/key}{#each floats.filter(item => item.unit === i) as item (item.id)}<b class="ability-float" class:executed={item.title === 'EXECUTED'}><span>{item.title}</span></b>{/each}<BattleEffectTags frame={combatFrame} index={i} {elapsed} {finished} />{#if combatFrame?.counters?.[i]}<div class="counter" class:gamble={combatFrame.counters[i].digits}>{#if combatFrame.counters[i].digits}{#each combatFrame.counters[i].digits! as digit, j}<span class:rolling={!finished && combatFrame.counters[i].value === j}>{digit}</span>{/each}{:else}{Math.floor(combatFrame.counters[i].value)}%{/if}</div>{/if}</div>
           <div class="readout">{#if replay.stage === 'budokai'}<span class="atb-label">Duel {(combatFrame?.positions?.[i] ?? 0) + 1}</span>{/if}<strong>{unit.name}<KeywordTags {unit} />{#if unit.boss}<span class="boss-tag">BOSS</span>{/if}</strong><span>HP {Math.ceil(hp[i])} / {Math.ceil(maximumHP[i])}{hp[i] <= 0 ? ' · KO' : ''}</span>
             <progress class="health" aria-label={`${unit.name} HP`} value={hp[i]} max={maximumHP[i]}></progress>
             {#if !implementationsFor(unit).some(ability => ability.cannotAttack)}<span class="atb-label">ATB</span><progress class="atb" aria-label={`${unit.name} ATB`} max="1" value={gauge(i)}></progress>{/if}
-            {#if !unit.boss}{#each combatFrame?.bossGauges?.filter(g => g.owner === i) ?? [] as timing}<span class="atb-label">{timing.title}</span><progress aria-label={timing.title + ' charge'} max="1" value={finished || hp[i] <= 0 ? 0 : Math.min(1,timing.progress + activeSeconds(combatFrame?.time ?? 0,elapsed,i,replay.stops)/timing.cooldown)}></progress>{/each}{/if}{#if unit.boss}<BossAbility {unit} owner={i} frame={combatFrame} {elapsed} stops={replay.stops} {finished} />{/if}
+            {#if !unit.boss}{#each combatFrame?.bossGauges?.filter(g => g.owner === i) ?? [] as timing}<span class="atb-label">{timing.title}</span><progress aria-label={timing.title + ' charge'} max="1" value={finished || hp[i] <= 0 ? 0 : Math.min(1,timing.progress + activeSeconds(combatFrame?.time ?? 0,elapsed,i,replay.stops)/timing.cooldown)}></progress>{/each}{/if}{#if unit.boss}<BossAbility {unit} owner={i} frame={combatFrame} {elapsed} stops={replay.stops} {finished} gaugeOnly />{/if}
             {#if hasAbility(unit, 40882)}<span class="atb-label">Rumbling</span><progress class="rumbling" aria-label={unit.name + ' Rumbling'} max="1" value={gauge(i, true)}></progress>{/if}
             {#if hasAbility(unit, 175198)}<span class="atb-label">Malevolent Shrine {combatFrame?.shrineUsed?.[i] ? '· Used' : ''}</span><progress aria-label={unit.name + ' Malevolent Shrine'} max="1" value={!unit.negated && !combatFrame?.shrineUsed?.[i] && hp[i] > 0 ? Math.min(1, (combatFrame?.shrine?.[i] ?? 0) + activeSeconds(combatFrame?.time ?? 0, elapsed, i, replay.stops) / ABILITY_RULES.shrineCooldown) : 0}></progress>{/if}
-            {#if combatFrame?.aura[i]}<span>All stats +10% · Driver’s High</span>{/if}
+            <BattleAbilityList {unit} />{#if combatFrame?.aura[i]}<span>All stats +10% · Driver’s High</span>{/if}
             {#if attackBonus[i] > 0}<span>ATK +{attackBonus[i]} · Kakuja</span>{/if}
           </div>
         </div>
       {/each}
     </section>{/each}
-    <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">{#each lines as line (line.id)}<line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} />{/each}</svg>
+    <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">{#each lines as line (line.id)}<line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2} />{/each}{#each linkLines as link}<line class="chain" x1={link.x1} y1={link.y1} x2={link.x2} y2={link.y2} />{/each}</svg>
   </div>
   <p class="combat-log">{announcement}</p>
   <p class="sr-only" role="status">{finished ? 'Battle finished.' : paused ? 'Battle paused.' : 'Battle in progress.'}</p>
 </section>
 
 <style>
+  .chain { stroke: #888; animation: none; stroke-dasharray: none; opacity: .8; }
+  .phased .portrait-content { filter: grayscale(1); opacity: .4; }
   .portrait-content { position: absolute; inset: 0; }
-  .status-negated { top: 50px; } .status-negated button { background: #555; border-color: #aaa; }
-  .status-curse { top: 74px; } .status-curse button { background: #5c1526; border-color: #c94565; }
   .witch .portrait { border: 2px solid #ffad65; }
-  .status-burn { position: absolute; right: -2px; top: -2px; z-index: 7; }
-  .status-burn button { min-height: 0; padding: 3px; border: 1px solid #ff773e; background: #923316; color: #fff0df; font: bold 10px var(--mono); }
-  .portrait .status-burn span { display: none; position: absolute; top: 100%; right: 0; width: 190px; padding: 10px; background: #19120e; border: 1px solid #ff773e; color: #fff0df; }
-  .portrait .status-burn:hover span, .portrait .status-burn:focus-within span { display: block; }
-  .status-chill { top: 26px; }
-  .status-chill button { background: #194963; border-color: #89d6ff; color: #e9f7ff; }
-  .portrait .status-chill span { background: #102731; border-color: #89d6ff; color: #e9f7ff; }
   .ability-float.executed { color: #ff424b; }
   .arena { color: var(--accent); margin-bottom: 16px; }
   .frozen { background: #302443; }
-  .ability-float { position: absolute; bottom: 70%; left: 0; z-index: 6; white-space: nowrap; color: #ffcfec; background: #120e18; padding: 3px 6px; font-size: 12px; animation: ability-rise 1.5s ease-out forwards; pointer-events: none; }
-  @keyframes ability-rise { from { transform: translateY(0); opacity: 1; } to { transform: translateY(-35px); opacity: 0; } }
+  .ability-float { position: absolute; bottom: 70%; left: 0; z-index: 6; white-space: nowrap; color: #ffcfec; background: #120e18; padding: 3px 6px; font-size: 12px; animation: ability-rise 3s ease-out forwards; pointer-events: none; }
+  @keyframes ability-rise { 0% { transform: translateY(0); opacity: 1; } 70% { opacity: 1; } 100% { transform: translateY(-40px); opacity: 0; } }
+  .ability-float > span { display: inline-block; animation: shake .3s ease-in-out 3; }
+  .counter { position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); background: #111; border: 2px solid var(--accent); color: #fff; z-index: 9; padding: 3px 7px; font: bold 16px var(--mono); white-space: nowrap; }
+  .counter.gamble { display: flex; gap: 4px; } .counter .rolling { animation: digit-roll .15s steps(2) infinite; } @keyframes digit-roll { 50% { transform: translateY(-3px); opacity: .4; } }
   .rumbling::-webkit-progress-value { background: #e5a052; }
   .rumbling::-moz-progress-bar { background: #e5a052; }
-  @media (prefers-reduced-motion: reduce) { .ability-float { animation: none; } }
+  @media (prefers-reduced-motion: reduce) { .ability-float, .ability-float > span, .counter .rolling { animation: none; } }
   .battle { margin: 24px 0; border-top: 1px solid var(--purple-line); padding-top: 20px; }
   .battle-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .board { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }

@@ -7,6 +7,10 @@
     "marine": {
       "title": "Marine Capture",
       "text": "A group of Marines are holding someone in public, but you don’t know who. Will you save them?"
+    },
+    "": {
+      "title": "Who Wants To Be A Madaoinaire (WIP)",
+      "text": "Quiz time! Answer the question correctly."
     }
   },
   "rules": {

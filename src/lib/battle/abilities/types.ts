@@ -2,10 +2,30 @@ import type { JourneyCharacter } from '../../types';
 import type { BaseStats } from '../../stats';
 import type { BattleEvent } from '../types';
 
-export type AbilityState = { used?: boolean; pulses?: number };
+export type AbilityState = { used?: boolean; pulses?: number; hits?: number; target?: number; ready?: boolean; digits?: number[]; chance?: number; count?: number; phase?: number; card?:string };
 export type TimedActivation = { nextDelay: number; attack?: { kind: 'rumbling' | 'shrine' | 'boss-attack'; title: string; multiplier?: number; single?: boolean; defenseIgnore?: number } };
 /** Abilities use combat actions, not the engine's scheduler or saved team data. */
 export interface AbilityContext {
+  readonly sides: readonly number[];
+  allies(owner:number, dead?:boolean): number[];
+  enemies(owner:number): number[];
+  target(owner:number): number | undefined;
+  addStats(owner:number, amount:number, title:string, permanent?:boolean): void;
+  addStat(owner:number,key:keyof BaseStats,amount:number,title:string):void;
+  activate(owner:number,id:number,targets:number[],action:(actor:number)=>void):boolean;
+  effect(owner:number,target:number,id:import('../effects').EffectId,duration:number,title:string): void;
+  damage(owner:number,target:number,amount:number,title:string,percent?:boolean): void;
+  summon(owner:number,kind:import('./special-units').SummonKind): void;
+  absorb(owner:number,bonus:number,heal:number,inherit?:boolean): boolean;
+  replaceCrew(owner:number): void;
+  transform(owner:number,target:number): void;
+  swap(owner:number,target:number): void;
+  grant(owner:number,id:number,permanent?:boolean): boolean;
+  protect(owner:number,target:number,duration:number,title:string): void;
+  seal(owner:number,target:number): void;
+  curse(owner:number,target:number,title:string):void;
+  setCounter(owner:number,ability:number,value:number,digits?:number[]): void;
+  effectiveAttack(owner:number,value:number): void;
   readonly units: readonly JourneyCharacter[];
   readonly hp: readonly number[];
   readonly maxHP: readonly number[];
@@ -27,6 +47,24 @@ export interface AbilityContext {
 }
 export interface AbilityDefinition {
   id: number;
+  targets?: 'self' | 'enemy' | 'enemies' | 'all' | 'allies';
+  selectTarget?(context:AbilityContext,owner:number):number|undefined;
+  activationTargets?(context:AbilityContext,owner:number):number[];
+  onUpdate?(context:AbilityContext,owner:number):void;
+  onFatal?(context:AbilityContext,owner:number):boolean;
+  onAllyFatal?(context:AbilityContext,owner:number,target:number):boolean;
+  onKill?(context:AbilityContext,owner:number,target:number):void;
+  onDodge?(context:AbilityContext,owner:number):void;
+  onEnemyActivation?(context:AbilityContext,owner:number,source:number,id:number,targets:number[]):'interrupt'|'reflect'|void;
+  onAnyActivation?(context:AbilityContext,owner:number):void;
+  targetMultiplier?(context:AbilityContext,owner:number,target:number):number;
+  dodgeChance?:number;
+  attackHits?:number;
+  attackTargets?:number;
+  untargetable?:boolean;
+  speedFloor?:boolean;
+  resetsBattle?:boolean;
+  offensive?:boolean;
   cooldown?: number;
   gauge?: 'rumbling' | 'shrine';
   oncePerBattle?: boolean;
