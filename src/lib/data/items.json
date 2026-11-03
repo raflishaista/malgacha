@@ -4,7 +4,7 @@
     "category": "consumable",
     "rarity": "R",
     "unique": false,
-    "description": "Try to catch a defeated opponent, then choose a team slot to replace. Catch rates: N 90%, R 60%, SR 30%, SSR 10%, UR 1%. Bosses cannot be caught."
+    "description": "Try to catch a defeated opponent, then choose a team slot to replace. Catch rates: N large, R moderate, SR small, SSR very small, UR very small. Bosses cannot be caught."
   },
   "nichirin": {
     "name": "Nichirin Sword",
@@ -46,14 +46,14 @@
     "category": "consumable",
     "rarity": "SR",
     "unique": false,
-    "description": "Try to catch a defeated opponent. Catch rates: N 100%, R 80%, SR 50%, SSR 30%, UR 5%. Bosses cannot be caught."
+    "description": "Try to catch a defeated opponent. Catch rates: N guaranteed, R large, SR moderate, SSR small, UR very small. Bosses cannot be caught."
   },
   "radar": {
     "name": "Dragon Ball Radar",
     "category": "relic",
     "rarity": "SR",
     "unique": true,
-    "description": "SSR rewards have a 40% chance to be a Dragon Ball. One per player."
+    "description": "SSR rewards have a moderate chance to be a Dragon Ball. One per player."
   },
   "longinus": {
     "name": "Spear of Longinus",
@@ -67,7 +67,7 @@
     "category": "equipment",
     "rarity": "SR",
     "unique": false,
-    "description": "Grants +25 Speed and a 10% chance to dodge incoming attacks."
+    "description": "Grants +25 Speed and a very small chance to dodge incoming attacks."
   },
   "drug": {
     "name": "Quirk-Destroying Drug",
@@ -95,7 +95,7 @@
     "category": "consumable",
     "rarity": "SSR",
     "unique": false,
-    "description": "Try to catch a defeated opponent. Catch rates: N 100%, R 100%, SR 80%, SSR 50%, UR 10%. Bosses cannot be caught."
+    "description": "Try to catch a defeated opponent. Catch rates: N guaranteed, R guaranteed, SR large, SSR moderate, UR very small. Bosses cannot be caught."
   },
   "dragonball": {
     "name": "Dragon Ball",
@@ -130,7 +130,7 @@
     "category": "consumable",
     "rarity": "SSR",
     "unique": false,
-    "description": "70% chance to grant a new implemented passive; 30% chance to permanently kill the unit. Maximum three passives per unit."
+    "description": "Large chance to grant a new implemented passive; small chance to permanently kill the unit. Maximum three passives per unit."
   },
   "merry": {
     "name": "Going Merry",

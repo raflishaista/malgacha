@@ -177,7 +177,7 @@
     "characterId": 15,
     "characterName": "Makunouchi, Ippo",
     "title": "Dempsey Roll",
-    "description": "Has a 20% chance to dodge an attack. Each successful dodge grants +15 Speed for this battle."
+    "description": "Has a small chance to dodge an attack. Each successful dodge grants +15 Speed for this battle."
   },
   {
     "characterId": 136805,
@@ -195,7 +195,7 @@
     "characterId": 163847,
     "characterName": "Itadori, Yuuji",
     "title": "Black Flash",
-    "description": "Attacks have a 30% chance to deal triple damage."
+    "description": "Attacks have a moderate chance to deal triple damage."
   },
   {
     "characterId": 80,
@@ -237,7 +237,7 @@
     "characterId": 5578,
     "characterName": "Itou, Kaiji",
     "title": "Ultimate Survivor",
-    "description": "Starts with a 75% chance to survive fatal damage at 1 HP. Each successful survival halves the chance."
+    "description": "Starts with a large chance to survive fatal damage at 1 HP. Each successful survival halves the chance."
   },
   {
     "characterId": 196899,
@@ -382,5 +382,71 @@
     "characterName": "Gabimaru",
     "title": "Ninpo: Ascetic Blaze",
     "description": "Attacks inflict Burn for 6 seconds: 3% of maximum HP each second. Reapplication refreshes its duration."
-  }
+  },
+  {
+    "characterId": 164470,
+    "characterName": "Fushiguro, Megumi",
+    "title": "With this treasure I summon...",
+    "description": "At half HP or below, channels for 5 seconds to summon Mahoraga (620 BST) into the team. Can only summon once per battle."
+  },
+  {
+    "characterId": 30,
+    "characterName": "Freecss, Gon",
+    "title": "Jajanken",
+    "description": "Attacks randomly switch between three forms: Rock deals double damage, Scissors strikes two enemies at once, and Paper ignores half the target’s Defense."
+  },
+  {
+    "characterId": 27,
+    "characterName": "Zoldyck, Killua",
+    "title": "Godspeed",
+    "description": "Periodically enters Godspeed for 4 seconds, gaining doubled Speed and reflecting all incoming damage."
+  },
+  {
+    "characterId": 175543,
+    "characterName": "Fushiguro, Toji",
+    "title": "Heavenly Restriction",
+    "description": "Negates all keywords and effects on this unit. Gains +10% to all stats for each keyword negated."
+  },
+  {
+    "characterId": 164482,
+    "characterName": "Zen'in, Maki",
+    "title": "Heavenly Restriction",
+    "description": "Negates all keywords and effects on this unit. Gains +10% to all stats for each keyword negated."
+  },
+  {
+    "characterId": 1336,
+    "characterName": "Aznable, Char",
+    "title": "Red Comet",
+    "description": "Innately gains triple Speed, but cannot gain further Speed from any source."
+  },
+  {
+    "characterId": 40881,
+    "characterName": "Ackerman, Mikasa",
+    "title": "Thunder Spears",
+    "description": "Periodically latches a Thunder Spear onto a target, inflicting BOMB for 5 seconds. When the timer expires, it explodes for double damage to the bearer and adjacent teammates."
+  },
+  {
+    "characterId": 46494,
+    "characterName": "Arlert, Armin",
+    "title": "Colossal Titan",
+    "description": "Once per battle after 5 seconds, triggers a colossal explosion dealing triple attack damage to all enemies."
+  },
+  {
+    "characterId": 62,
+    "characterName": "Roronoa, Zoro",
+    "title": "Santoryu",
+    "description": "Gains a massive stat boost (+66 to all stats) when three items are equipped."
+  },
+  {
+    "characterId": 2072,
+    "characterName": "Portgas D., Ace",
+    "title": "Dai Enkai: Entei",
+    "description": "Every 5 seconds, unleashes an area attack on all enemies that inflicts Burn."
+  },
+  {
+    "characterId": 305,
+    "characterName": "Sanji",
+    "title": "Diable Jambe",
+    "description": "Every 5 seconds, strikes for double damage and inflicts Burn."
+    }
 ]

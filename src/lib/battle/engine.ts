@@ -115,7 +115,9 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     stats.forEach((value,i)=>{
       if(effects.has(i,'WEAKENED',time))for(const key of STAT_KEYS)value[key]=Math.max(1,value[key]-20);
       if(!units[i].negated&&effects.has(i,'FESTIVE MIRACLE',time))value.speed*=4;
+      if(!units[i].negated&&effects.has(i,'GODSPEED',time))value.speed*=2;
       if(implementationsFor(units[i]).some(a=>a.speedFloor))value.speed=Math.max(value.speed,units[i].baseStats.speed);
+      if(!units[i].negated&&implementationsFor(units[i]).some(a=>a.id===1336))value.speed=units[i].baseStats.speed*3;
       if(attackOverrides.has(i))value.attack=attackOverrides.get(i)!;
     });
     for (let i = 0; i < count; i++) {
@@ -238,18 +240,18 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     activate(owner,id,targets,action){return !!trigger(owner,id,targets,action);},
     target(owner){const values=enemies(owner);return activationTarget!==undefined&&values.includes(activationTarget)?activationTarget:values[Math.floor(random()*values.length)];},
     addStat(owner,key,amount,title){units[owner].battleModifiers={...units[owner].battleModifiers,[key]:(units[owner].battleModifiers?.[key]??0)+amount};unitOverrides[owner]={...unitOverrides[owner],battleModifiers:units[owner].battleModifiers};refreshStats();emit(owner,owner,'buff',title);},
-    effect(owner,target,id,duration,title){effects.apply(target,id,time,duration,owner);refreshStats();emit(owner,target,'buff',title);},
+    effect(owner,target,id,duration,title){if(implementationsFor(units[target]).some(a=>a.id===175543||a.id===164482))return;effects.apply(target,id,time,duration,owner);refreshStats();emit(owner,target,'buff',title);},
     damage(owner,target,amount,title,percent=false){if(title==='Self-Destruct')blastTie=true;deal(owner,target,percent?maxHP[target]*amount:amount,title);},
     setCounter(owner,ability,value,digits){counters[owner]={ability,value,digits};},
     effectiveAttack(owner,value){attackOverrides.set(owner,value);refreshStats();},
     summon(owner,kind){
       if(units[owner].clone)return;
       if((kind==='clone'||kind==='pikachu')&&units.some(u=>u.summonOwner===owner))return;
-      const key=-90000-(kind==='clone'?1:kind==='pikachu'?2:kind==='mahad'?3:4);if(state(owner,key).used)return;state(owner,key).used=true;
+      const key=-90000-(kind==='clone'?1:kind==='pikachu'?2:kind==='mahad'?3:kind==='slifer'?4:5);if(state(owner,key).used)return;state(owner,key).used=true;
       const unit=kind==='clone'?{...structuredClone(units[owner]),clone:true,baseStats:{...stats[owner]},name:units[owner].name+' (Clone)',equipment:[],extraAbilities:abilityIds(units[owner]).filter(id=>id!==17),removedAbilities:[17],permanentBoosts:undefined,battleModifiers:undefined,instanceId:units[owner].instanceId+'-clone'}:specialUnit(kind,units[owner].instanceId+'-'+kind,random);
       unit.summonOwner=owner;const target=append(unit,owner);
       if(kind==='clone')for(const ability of implementationsFor(unit))if(ability.cooldown!==undefined)timers[target][ability.id]=time+ability.cooldown;
-      syncTimers();refreshGear();refreshStats();emit(owner,target,'summon',kind==='clone'?'Shadow Clones':kind==='pikachu'?'I Choose You':kind==='mahad'?'Dark Magic Curtain':'Slifer the Sky Dragon');
+      syncTimers();refreshGear();refreshStats();emit(owner,target,'summon',kind==='clone'?'Shadow Clones':kind==='pikachu'?'I Choose You':kind==='mahad'?'Dark Magic Curtain':kind==='mahoraga'?'With this treasure I summon...':'Slifer the Sky Dragon');
     },
     replaceCrew(owner){const crew=['faye','jet','ein','edward'] as const;const members=allies(owner).filter(i=>positions[i]<5).slice(0,4);members.forEach((i,n)=>{units[i]={...specialUnit(crew[n],units[i].instanceId,random)};timers[i]={};abilityStates[i].clear();unitOverrides[i]=structuredClone(units[i]);hp[i]=units[i].baseStats.hp;maxHP[i]=hp[i];next[i]=time+attackInterval(units[i].baseStats.speed);});refreshGear();refreshStats();syncTimers();emit(owner,owner,'transform','Bebop Crew');},
     absorb(owner,amount,healFraction,inherit=false){const targets=allies(owner);if(!targets.length)return false;
@@ -269,7 +271,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     get stats() { return stats; },
     get time() { return time; },
     addAttack(owner, amount) { bonus[owner] += amount; },
-    inflictBurn(owner, target) { statuses.burn(target, time, owner); },
+    inflictBurn(owner, target) { if(implementationsFor(units[target]).some(a=>a.id===175543||a.id===164482))return; statuses.burn(target, time, owner); },
     scheduleAbility(owner, ability, delay) { timers[owner][ability] = time + delay; syncTimers(); },
     summonLure(owner) {
       let target = units.findIndex(unit => unit.summonOwner === owner);
@@ -427,7 +429,22 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     const earliest = Math.min(stageAt, nextExpiration, negationExpiry,effectExpiry, ...burnTimes, ...next.map((n, i) => available(i) ? Math.min(n, nextAbility[i]) : Infinity));
     if (earliest > BATTLE_RULES.maxSeconds) { time = BATTLE_RULES.maxSeconds; break; }
     time = earliest;
-    if(time===effectExpiry){const oldDead=hp.flatMap((v,i)=>v<=0?[i]:[]),dead=effects.expire(time).filter(i=>available(i));for(const i of dead){hp[i]=0;emit(i,i,'execute','Time expired');}deaths(dead,oldDead);refreshStats();settleDuels();snapshot();continue;}
+    if(time===effectExpiry){
+      const oldDead=hp.flatMap((v,i)=>v<=0?[i]:[]);
+      const {lethal,bombs}=effects.expire(time);
+      const dead=lethal.filter(i=>available(i));
+      for(const i of dead){hp[i]=0;emit(i,i,'execute','Time expired');}
+      deaths(dead,oldDead);
+      for(const bomb of bombs){
+        const victimSide=sides[bomb.target], victimPos=positions[bomb.target];
+        const bombVictims=[bomb.target,...units.flatMap((_,j)=>j!==bomb.target&&available(j)&&sides[j]===victimSide&&Math.abs(positions[j]-victimPos)===1?[j]:[])];
+        for(const v of bombVictims)if(available(v)){
+          const dmg=2*attackDamage(stats[bomb.source]?.attack??100,stats[v].defense)*incomingDamageMultiplier(units[v]);
+          deal(bomb.source,v,dmg,'Thunder Spear');
+        }
+      }
+      refreshStats();settleDuels();snapshot();continue;
+    }
     if (time === negationExpiry) {
       units.forEach((unit, i) => {
         if (!permanentlyNegated.has(i) && unit.negated && statuses.negatedUntil[i] <= time) {
@@ -495,7 +512,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     const targetable=living.filter(i=>!implementationsFor(units[i]).some(a=>a.untargetable));if(targetable.length)living=targetable;
     const taunts = living.filter(i => !units[i].negated && keywordsFor(units[i]).includes('TAUNT'));
     const candidates = taunts.length ? taunts : living;
-    const targetCount=!isAbility?Math.max(1,...implementationsFor(units[attacker]).map(a=>a.attackTargets??1)):1;
+    const targetCount=!isAbility?Math.max(1,...implementationsFor(units[attacker]).map(a=>typeof a.attackTargets === 'function' ? a.attackTargets(context, attacker) : (a.attackTargets ?? 1))):1;
     const single=isAbility&&activation?.attack?.single?(attacker!==scheduledAttacker?scheduledAttacker:plannedTargets.find(i=>candidates.includes(i)))??candidates[Math.floor(random()*candidates.length)]:candidates[Math.floor(random()*candidates.length)];
     let targets = isAbility && !activation?.attack?.single || units[attacker].witch ? living : candidates.length ? [single,...candidates.filter(i=>i!==single).slice(0,targetCount-1)] : [];
     if (!targets.length) {
@@ -513,7 +530,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       if(effects.has(target,'KURIBOH',time)){effects.entries[target].delete('KURIBOH');emit(target,target,'buff','Kuriboh');return;}
       const dodge=1-(1-dodgeChance(units[target]))*implementationsFor(units[target]).reduce((chance,a)=>chance*(1-(a.dodgeChance??0)),1);
       if (dodge > 0 && random() < dodge) { emit(target, target, 'dodge', 'DODGE');for(const ability of implementationsFor(units[target]))ability.onDodge?.(context,target); return; }
-      const ignore = 1 - (1 - defenseIgnore(units[attacker])) * (1 - (activation?.attack?.defenseIgnore ?? 0));
+      const ignore = 1 - (1 - defenseIgnore(units[attacker])) * (1 - (activation?.attack?.defenseIgnore ?? attackEffect?.defenseIgnore ?? 0));
       const matchup=implementationsFor(units[attacker]).reduce((value,a)=>value*(a.targetMultiplier?.(context,attacker,target)??1),1);
       const damage = attackDamage(stats[attacker].attack, stats[target].defense * (1 - ignore)) * (activation?.attack?.multiplier ?? attackEffect?.multiplier ?? 1) * incomingDamageMultiplier(units[target])*matchup;
       if(!units[target].negated&&effects.has(target,'REFLECT',time)){deal(target,attacker,damage,'REFLECT',false);return;}

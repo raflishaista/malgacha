@@ -10,7 +10,9 @@ export const EFFECTS = {
   BERSERK: {buff:false,color:'#8e2639',description:'Attacks allies instead of enemies.'},
   STUN: {buff:false,color:'#9374b8',description:'Cannot build ATB or attack.'},
   WEAKENED: {buff:false,color:'#355c97',description:'Every stat is reduced by 20.'},
-  KURIBOH: {buff:true,color:'#a79773',description:'Blocks the next attack that would deal damage.'}
+  KURIBOH: {buff:true,color:'#a79773',description:'Blocks the next attack that would deal damage.'},
+  BOMB: {buff:false,color:'#e04030',description:'Thunder spear latched onto this unit. Explodes after 5 seconds, dealing double damage to this unit and adjacent teammates.'},
+  GODSPEED: {buff:true,color:'#64d8ff',description:'Doubles Speed and reflects incoming attacks.'}
 } as const;
 export type EffectId = keyof typeof EFFECTS;
 export type TimedEffect = {id:EffectId; until:number; source:number};
@@ -21,6 +23,17 @@ export class BattleEffects {
   apply(target:number,id:EffectId,time:number,duration:number,source:number){this.entries[target].set(id,{id,until:time+duration,source});}
   has(target:number,id:EffectId,time:number){return (this.entries[target]?.get(id)?.until??0)>time;}
   next(time:number){return Math.min(Infinity,...this.entries.flatMap(map=>[...map.values()].map(e=>e.until).filter(t=>t>time)));}
-  expire(time:number){const lethal:number[]=[];this.entries.forEach((map,i)=>{for(const [id,e] of map)if(e.until<=time){map.delete(id);if(id==='STRUGGLER'||id==='ADVANCE')lethal.push(i);}});return lethal;}
+  expire(time:number){
+    const lethal:number[]=[];
+    const bombs:{target:number;source:number}[]=[];
+    this.entries.forEach((map,i)=>{
+      for(const [id,e] of map)if(e.until<=time){
+        map.delete(id);
+        if(id==='STRUGGLER'||id==='ADVANCE')lethal.push(i);
+        if(id==='BOMB')bombs.push({target:i,source:e.source});
+      }
+    });
+    return {lethal, bombs};
+  }
   frame(time:number){return this.entries.map(map=>[...map.values()].filter(e=>e.until>time));}
 }

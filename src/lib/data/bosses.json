@@ -1,0 +1,50 @@
+[
+  {
+    "id": 7345,
+    "name": "Grand Fisher",
+    "image": "https://cdn.myanimelist.net/images/characters/12/103060.webp",
+    "title": "Lure",
+    "active": true,
+    "description": "After 10 seconds without a lure, summons LURE with Taunt and one quarter of the boss’s stats. It can attack and must be defeated before the boss can be targeted again."
+  },
+  {
+    "id": 7407,
+    "name": "Kurama",
+    "image": "https://cdn.myanimelist.net/images/characters/5/232183.webp",
+    "title": "Tailed Beast Bomb",
+    "active": true,
+    "description": "Every 5 seconds, hits all enemies for 2.5 times the damage of a normal attack."
+  },
+  {
+    "id": 184112,
+    "name": "Gun Devil",
+    "image": "https://cdn.myanimelist.net/images/characters/7/500506.webp",
+    "title": "Gun Fiend",
+    "active": true,
+    "description": "Once on death, takes the player’s weakest member by base BST (first slot on ties) and returns at full HP. Uses the host’s current stats plus 50% of the boss’s stats. The host leaves the player’s side for this battle only."
+  },
+  {
+    "id": 240069,
+    "name": "Mahoraga",
+    "image": "https://cdn.myanimelist.net/images/characters/8/625195.webp",
+    "title": "Adaptation",
+    "active": false,
+    "description": "After being affected by an ability once, becomes immune to that ability."
+  },
+  {
+    "id": 74017,
+    "name": "Deoxys",
+    "image": "https://cdn.myanimelist.net/images/characters/4/282126.webp",
+    "title": "Form Change",
+    "active": true,
+    "description": "Starts in Normal Forme and switches to a different random forme every 3 seconds. Attack: +60 ATK, −60 DEF. Defense: +80 DEF, −80 ATK. Speed: +60 SPD, −30 ATK and DEF. Changes replace the previous forme’s bonuses."
+  },
+  {
+    "id": -1001,
+    "name": "Sahaquiel",
+    "image": "/images/bosses/sahaquiel.webp",
+    "title": "10th Angel",
+    "active": true,
+    "description": "Does not attack. At 20 seconds, kills every player unit and ends the battle in defeat. Defeat it before the countdown reaches zero. Time stop does not pause this countdown."
+  }
+]

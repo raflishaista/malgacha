@@ -6,3 +6,4 @@ build/
 !.env.example
 .data/
 test-results/
+.vercel/

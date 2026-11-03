@@ -10,6 +10,7 @@ import { Store } from './store';
 import { parseUsername } from './providers';
 import type { Job, Title } from '../types';
 import { BOSSES } from '../bosses';
+import { abilityFor } from '../journeys';
 
 const roots: string[] = [];
 afterEach(async () => {
@@ -202,6 +203,7 @@ describe('durable imports', () => {
     saved.starterTeam = team.map(c => ({ ...c, baseStats: { hp: 10000, attack: 10000, defense: 10000, speed: 10000 } }));
     await store.saveJob(saved);
     await engine.journeyOpponents(job.id);
+    const s1 = (await store.getJob(job.id))!; s1.encounter!.stage = 'shuchiin'; await store.saveJob(s1);
     const first = await engine.journeyBattle(job.id, 0, undefined, 'idle');
     expect(first.result!.winner).toBe('left');
     expect(first.replay!.floor).toBe(0);
@@ -209,6 +211,7 @@ describe('durable imports', () => {
     expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).arenaWins).toBe(1);
     const restarted = new Engine(store, providers, 0);
     await restarted.journeyOpponents(job.id);
+    const s2 = (await store.getJob(job.id))!; s2.encounter!.stage = 'shuchiin'; await store.saveJob(s2);
     const second = await restarted.journeyBattle(job.id, 0, undefined, 'idle');
     expect(second.replay!.floor).toBe(1);
     expect(second.arenaWins).toBe(2);
@@ -301,6 +304,17 @@ describe('durable imports', () => {
     expect(migrated.every(c => c.baseStats && c.instanceId)).toBe(true);
     expect(await restarted.journeyTeam(job.id)).toEqual(migrated);
     expect(Object.values((await store.getJob(job.id))!.pool).every(c => !('baseStats' in c))).toBe(true);
+  });
+  it('rerolls starting team with newly implemented abilities for testing', async () => {
+    const store = await setup();
+    const engine = new Engine(store, { lists: vi.fn(async () => []), cast: vi.fn(async () => []) }, 0);
+    const job = await engine.create('demo', true, true, 'journeys');
+    await finished(store, job.id);
+    const team = await engine.journeyTeam(job.id, true);
+    expect(team).toHaveLength(5);
+    const newAbilityIds = [164470, 30, 27, 175543, 164482, 1336, 40881, 46494, 62, 2072, 305];
+    expect(team.some(c => newAbilityIds.includes(c.id))).toBe(true);
+    expect(new Set(team.map(c => c.id)).size).toBe(5);
   });
   it('keeps the same profile independent across comparison panels', async () => {
     const store = await setup();

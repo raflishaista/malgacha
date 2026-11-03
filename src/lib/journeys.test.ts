@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { abilities, abilityFor, starterTeam, opponentTeams } from './journeys';
+import { abilities, abilityFor, starterTeam, opponentTeams, testingStarterTeam, NEW_TESTING_CHARACTERS } from './journeys';
 import type { PoolCharacter } from './types';
 const character = (id: number): PoolCharacter => ({ id, name: String(id), image: null, url: '', titles: [], favorites: 0 });
 describe('starting teams', () => {
@@ -39,5 +39,22 @@ describe('starting teams', () => {
     expect(abilities.every(a => a.characterName && a.title && a.description)).toBe(true);
     expect(abilityFor(4)).toBeUndefined();
     expect(abilityFor(16)).toBeUndefined();
+  });
+  it('rolls five unique characters with one guaranteed new ability and four random for testing', () => {
+    expect(NEW_TESTING_CHARACTERS).toHaveLength(11);
+    expect(NEW_TESTING_CHARACTERS.some(c => c.id === 175543 && c.name.includes('Toji'))).toBe(true);
+    expect(NEW_TESTING_CHARACTERS.every(c => abilityFor(c.id) !== undefined)).toBe(true);
+
+    const pool = Array.from({ length: 10 }, (_, i) => character(900000 + i));
+    const team = testingStarterTeam(pool);
+    expect(team).toHaveLength(5);
+    expect(new Set(team.map(c => c.id)).size).toBe(5);
+    // At least one unit must be one of the new ability characters
+    expect(team.some(c => NEW_TESTING_CHARACTERS.some(a => a.id === c.id))).toBe(true);
+
+    // Custom pool characters are preferred when present
+    const customPool = Object.fromEntries(NEW_TESTING_CHARACTERS.map(c => [c.id, { ...c, name: `Custom ${c.name}` }]));
+    const customTeam = testingStarterTeam(customPool);
+    expect(customTeam.some(c => c.name.startsWith('Custom '))).toBe(true);
   });
 });

@@ -5,13 +5,16 @@ import type { JourneyCharacter } from '../types';
 export type Keyword = 'TAUNT' | 'SOUL GEM' | 'MARINE SOLIDARITY' | 'WITCH' | 'LIFESTEAL' | 'HOST OF SUKUNA';
 export const KEYWORD_INFO: Record<Keyword, string> = { ...definitions.keywords, LIFESTEAL: 'Attacks heal this unit for half the actual damage dealt.', 'HOST OF SUKUNA': 'Stacks unlock King of Poison (5), Cleave (10), Incomplete Malevolent Shrine (15), and Incarnated Sukuna (20).' };
 export const KEYWORD_RULES = { soulGem: definitions.rules.soulGem, witch: definitions.rules.witch, marine: definitions.rules.marine };
-export const keywordsFor = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'bossId' | 'empty' | 'extraAbilities' | 'witch' | 'soulGem' | 'marine' | 'keywords' | 'sukunaStacks' | 'removedAbilities' | 'negated'>): Keyword[] => [...new Set<Keyword>([
-  ...implementationsFor({ ...unit, negated: false }).flatMap(ability => ability.keywords ?? []),
-  ...(unit.keywords ?? []),
-  ...(unit.witch ? ['WITCH' as const] : unit.soulGem ? ['SOUL GEM' as const] : []),
-  ...(unit.marine ? ['MARINE SOLIDARITY' as const] : []),
-  ...(unit.sukunaStacks ? ['HOST OF SUKUNA' as const] : [])
-])];
+export const keywordsFor = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'bossId' | 'empty' | 'extraAbilities' | 'witch' | 'soulGem' | 'marine' | 'keywords' | 'sukunaStacks' | 'removedAbilities' | 'negated'>): Keyword[] => {
+  if (unit.id === 175543 || unit.id === 164482 || unit.extraAbilities?.includes(175543) || unit.extraAbilities?.includes(164482)) return [];
+  return [...new Set<Keyword>([
+    ...implementationsFor({ ...unit, negated: false }).flatMap(ability => ability.keywords ?? []),
+    ...(unit.keywords ?? []),
+    ...(unit.witch ? ['WITCH' as const] : unit.soulGem ? ['SOUL GEM' as const] : []),
+    ...(unit.marine ? ['MARINE SOLIDARITY' as const] : []),
+    ...(unit.sukunaStacks ? ['HOST OF SUKUNA' as const] : [])
+  ])];
+};
 export function keywordBonuses(unit: JourneyCharacter, gear: BaseStats = { hp: 0, attack: 0, defense: 0, speed: 0 }): BaseStats {
   if (unit.negated) return { hp: 0, attack: 0, defense: 0, speed: 0 };
   return Object.fromEntries((['hp', 'attack', 'defense', 'speed'] as const).map(key => {

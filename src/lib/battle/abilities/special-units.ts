@@ -7,7 +7,8 @@ export const SPECIAL_UNITS = {
   faye:{id:2,name:'Valentine, Faye',image:'https://cdn.myanimelist.net/images/characters/15/264961.webp',bst:620},
   jet:{id:3,name:'Black, Jet',image:'https://cdn.myanimelist.net/images/characters/11/253723.webp',bst:620},
   ein:{id:4,name:'Ein',image:'https://cdn.myanimelist.net/images/characters/5/30624.webp',bst:620},
-  edward:{id:16,name:'Wong Hau Pepelu Tivrusky IV, Edward',image:'https://cdn.myanimelist.net/images/characters/16/30533.webp',bst:620}
+  edward:{id:16,name:'Wong Hau Pepelu Tivrusky IV, Edward',image:'https://cdn.myanimelist.net/images/characters/16/30533.webp',bst:620},
+  mahoraga:{id:240069,name:'Eight-Handled Sword Divergent Sila Divine General Mahoraga',image:'https://cdn.myanimelist.net/images/characters/9/528343.webp',bst:620}
 } as const;
 export type SummonKind='clone'|keyof typeof SPECIAL_UNITS;
 export function specialUnit(kind:Exclude<SummonKind,'clone'>,instanceId:string,random:()=>number):JourneyCharacter {

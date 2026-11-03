@@ -1,323 +1,674 @@
-import { rollEvents, eventCharacter, MARINE_IDS, CAPTIVE_IDS, type EventAction } from '../events';
-import { sample } from '../pool';
+import { randomInt, randomUUID } from 'node:crypto';
+import { setTimeout as sleep } from 'node:timers/promises';
+import {
+  rollEvents,
+  eventCharacter,
+  MARINE_IDS,
+  CAPTIVE_IDS,
+  type EventAction
+} from '../events';
+import { sample, mergeCast } from '../pool';
 import { rollStage, type StageId } from '../stages';
-import { applyInventoryAction, inventoryView, newUnit, randomPoolUnit, victoryRerollPool, type InventoryAction } from './inventory';
+import {
+  applyInventoryAction,
+  inventoryView,
+  newUnit,
+  randomPoolUnit,
+  victoryRerollPool,
+  type InventoryAction
+} from './inventory';
 import { rewardChoices } from '../items';
-import { starterTeam, opponentTeams } from '../journeys';
-import {abilityIds} from '../battle/abilities/catalog';
+import { starterTeam, opponentTeams, testingStarterTeam, NEW_TESTING_CHARACTERS } from '../journeys';
+import { abilityIds } from '../battle/abilities/catalog';
 import { simulateBattle } from '../battle/engine';
 import { isBossFloor, rollBoss } from '../bosses';
 import { generateBaseStats } from '../stats';
 import { rarityFor } from '../rarity';
-import type { JourneyCharacter } from '../types';
-import { randomInt } from 'node:crypto';
+import type { JourneyCharacter, Job, JobView } from '../types';
 import { bestSource, favoriteTotal } from '../match';
-import { randomUUID } from 'node:crypto';
-import { setTimeout as sleep } from 'node:timers/promises';
-import { mergeCast } from '../pool';
-import { titleKey, type Job, type JobView } from '../types';
+import { titleKey } from '../types';
 import { demoCast, demoTitles } from './demo';
 import { parseUsername, type Providers } from './providers';
 import { Store } from './store';
 
-const activeStates = new Set(['queued', 'listing', 'fetching']);
+const ACTIVE_STATES = new Set(['queued', 'listing', 'fetching']);
+
 export function view(job: Job): JobView {
   const { titles, done, pool, failures, listed: _listed, ...rest } = job;
-  return { ...rest, total: titles.length, processed: done.length, failed: Object.keys(failures).length,
+  return {
+    ...rest,
+    total: titles.length,
+    processed: done.length,
+    failed: Object.keys(failures).length,
     uniqueCharacters: Object.keys(pool).length,
-    ratedFavoriteCounts: Object.values(pool).filter((c) => bestSource(c)).map((c) => c.favorites ?? null),
-    favoriteCounts: Object.values(pool).flatMap((c) => typeof c.favorites === "number" ? [c.favorites] : []),
-    unknownFavorites: Object.values(pool).filter((c) => typeof c.favorites !== "number").length,
-    failures: Object.entries(failures).map(([key, message]) => ({ title: titles.find((t) => titleKey(t) === key)?.name || key, message })) };
+    ratedFavoriteCounts: Object.values(pool)
+      .filter((c) => bestSource(c))
+      .map((c) => c.favorites ?? null),
+    favoriteCounts: Object.values(pool).flatMap((c) =>
+      typeof c.favorites === 'number' ? [c.favorites] : []
+    ),
+    unknownFavorites: Object.values(pool).filter((c) => typeof c.favorites !== 'number').length,
+    failures: Object.entries(failures).map(([key, message]) => ({
+      title: titles.find((t) => titleKey(t) === key)?.name || key,
+      message
+    }))
+  };
 }
 
-/** One durable queue for one long-running Node process. */
 export class Engine {
   private queue: string[] = [];
   private running = false;
   private controllers = new Map<string, AbortController>();
   private initialized?: Promise<void>;
   private mutations: Promise<unknown> = Promise.resolve();
-  constructor(readonly store: Store, private providers: Providers, private demoDelay = 1500) {}
-  init() {
-    return this.initialized ??= (async () => {
+
+  constructor(
+    readonly store: Store,
+    private providers: Providers,
+    private demoDelay = 1500
+  ) {}
+
+  init(): Promise<void> {
+    return (this.initialized ??= (async () => {
       const jobs = await this.store.jobs();
-      this.queue.push(...jobs.filter((job) => activeStates.has(job.state)).sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((job) => job.id));
+      const pendingIds = jobs
+        .filter((job) => ACTIVE_STATES.has(job.state))
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+        .map((job) => job.id);
+
+      this.queue.push(...pendingIds);
       this.kick();
-    })();
+    })());
   }
+
   private serialize<T>(operation: () => Promise<T>): Promise<T> {
     const next = this.mutations.then(operation);
     this.mutations = next.catch(() => {});
     return next;
   }
+
   async create(input: string, includePlanned: boolean, demo: boolean, scope = 'lottery') {
     await this.init();
     return this.serialize(async () => {
       const username = demo ? 'demo' : parseUsername(input);
       const jobs = await this.store.jobs();
-      const existing = jobs.find((job) => job.username.toLowerCase() === username.toLowerCase() && (job.scope ?? 'lottery') === scope && job.demo === demo && job.includePlanned === includePlanned && activeStates.has(job.state));
+
+      const existing = jobs.find(
+        (job) =>
+          job.username.toLowerCase() === username.toLowerCase() &&
+          (job.scope ?? 'lottery') === scope &&
+          job.demo === demo &&
+          job.includePlanned === includePlanned &&
+          ACTIVE_STATES.has(job.state)
+      );
       if (existing) return existing;
-      if (jobs.filter((job) => activeStates.has(job.state)).length >= 10) throw new Error('The import queue is full. Please try again later.');
+
+      if (jobs.filter((job) => ACTIVE_STATES.has(job.state)).length >= 10) {
+        throw new Error('The import queue is full. Please try again later.');
+      }
+
       const now = new Date().toISOString();
-      const job: Job = { id: randomUUID(), username, scope, demo, includePlanned, state: 'queued', createdAt: now, updatedAt: now, titles: [], listed: false, done: [], failures: {}, pool: {}, message: 'Waiting for the importer.' };
+      const job: Job = {
+        id: randomUUID(),
+        username,
+        scope,
+        demo,
+        includePlanned,
+        state: 'queued',
+        createdAt: now,
+        updatedAt: now,
+        titles: [],
+        listed: false,
+        done: [],
+        failures: {},
+        pool: {},
+        message: 'Waiting for the importer.'
+      };
+
       await this.store.saveJob(job);
       this.queue.push(job.id);
       this.kick();
       return job;
     });
   }
+
   async retry(id: string) {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
       if (!job) throw new Error('Import not found.');
-      if (activeStates.has(job.state) || job.state === 'complete') return job;
-      if ((await this.store.jobs()).filter((item) => activeStates.has(item.state)).length >= 10) throw new Error('The import queue is full. Please try again later.');
+      if (ACTIVE_STATES.has(job.state) || job.state === 'complete') return job;
+
+      const jobs = await this.store.jobs();
+      if (jobs.filter((item) => ACTIVE_STATES.has(item.state)).length >= 10) {
+        throw new Error('The import queue is full. Please try again later.');
+      }
+
       job.failures = {};
       job.state = 'queued';
       job.message = 'Retry queued; previously fetched characters are preserved.';
       await this.store.saveJob(job);
+
       this.queue.push(job.id);
       this.kick();
       return job;
     });
   }
-  async journeyOpponents(id: string): Promise<{ teams: JourneyCharacter[][]; stage?: StageId; events?: (import('../events').JourneyEvent | null)[] }> {
+
+  async journeyOpponents(
+    id: string
+  ): Promise<{
+    teams: JourneyCharacter[][];
+    stage?: StageId;
+    events?: (import('../events').JourneyEvent | null)[];
+  }> {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
-      if (!job || job.scope !== 'journeys' || job.state !== 'complete' || !job.starterTeam) throw new Error('Roll your starting team before departing.');
-      if (job.itemReward) throw new Error('Choose your item reward before continuing.');
-      if (job.pendingCatch) throw new Error('Place your caught unit before continuing.');
-      if (!job.starterTeam.some(c => !('empty' in c && c.empty))) throw new Error('Your team is empty. Use the testing team reroll to continue.');
-      if (job.encounter?.selected !== undefined && job.encounter.events?.[job.encounter.selected] && !['complete'].includes(job.encounter.events[job.encounter.selected]!.status) && !job.encounter.gameOver) throw new Error('Finish your event before continuing.');
+      if (!job || job.scope !== 'journeys' || job.state !== 'complete' || !job.starterTeam) {
+        throw new Error('Roll your starting team before departing.');
+      }
+      if (job.itemReward) {
+        throw new Error('Choose your item reward before continuing.');
+      }
+      if (job.pendingCatch) {
+        throw new Error('Place your caught unit before continuing.');
+      }
+      if (!job.starterTeam.some((c) => !('empty' in c && c.empty))) {
+        throw new Error('Your team is empty. Use the testing team reroll to continue.');
+      }
+      if (
+        job.encounter?.selected !== undefined &&
+        job.encounter.events?.[job.encounter.selected] &&
+        !['complete'].includes(job.encounter.events[job.encounter.selected]!.status) &&
+        !job.encounter.gameOver
+      ) {
+        throw new Error('Finish your event before continuing.');
+      }
+
       const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+
       if (isBossFloor(job.arenaWins ?? 0)) {
         const teams = [[rollBoss(randomUUID(), random)]];
         job.encounter = { teams };
         await this.store.saveJob(job);
         return { teams };
       }
-      const teams = opponentTeams(Object.values(job.pool), random).map(team => team.map(character => {
-        const statRarity = rarityFor(character.favorites) ?? 'N';
-        return { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, random) };
-      }));
-      job.encounter = { teams, stage: rollStage(random), events: rollEvents(random) };
+
+      const teams = opponentTeams(Object.values(job.pool), random).map((team) =>
+        team.map((character) => {
+          const statRarity = rarityFor(character.favorites) ?? 'N';
+          return {
+            ...character,
+            instanceId: randomUUID(),
+            statRarity,
+            baseStats: generateBaseStats(statRarity, random)
+          };
+        })
+      );
+
+      job.encounter = {
+        teams,
+        stage: rollStage(random),
+        events: rollEvents(random)
+      };
+
       await this.store.saveJob(job);
-      return { teams, stage: job.encounter.stage!, events: job.encounter.events };
+      return {
+        teams,
+        stage: job.encounter.stage!,
+        events: job.encounter.events
+      };
     });
   }
+
   async journeyTeam(id: string, reroll = false): Promise<JourneyCharacter[]> {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
       if (!job || job.scope !== 'journeys') throw new Error('Journey import not found.');
-      if (job.state !== 'complete') throw new Error('Finish importing before rolling your starting team.');
-      const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
-      const selected = !reroll && job.starterTeam ? job.starterTeam : starterTeam(Object.values(job.pool), random);
-      const team = selected.map((character): JourneyCharacter => {
-        if ('baseStats' in character && 'instanceId' in character && 'statRarity' in character) return character as JourneyCharacter;
-        const statRarity = rarityFor(character.favorites) ?? 'N';
-        return { ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, random) };
-      });
-      if (reroll) {
-        if (job.itemReward) throw new Error('Choose your item reward before rerolling.');
-        const extra = (job.inventory ?? []).filter(i => i.itemId === 'merry' || i.itemId === 'sunny').length;
-        for (let i = 0; i < extra; i++) team.push(randomPoolUnit(job, random));
+      if (job.state !== 'complete') {
+        throw new Error('Finish importing before rolling your starting team.');
       }
+
+      const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+
+      if (reroll) {
+        for (const char of NEW_TESTING_CHARACTERS) {
+          if (!job.pool[char.id]) {
+            job.pool[char.id] = char;
+          }
+        }
+      }
+
+      const selected =
+        !reroll && job.starterTeam
+          ? job.starterTeam
+          : reroll
+            ? testingStarterTeam(job.pool, random)
+            : starterTeam(Object.values(job.pool), random);
+
+      const team = selected.map((character): JourneyCharacter => {
+        if ('baseStats' in character && 'instanceId' in character && 'statRarity' in character) {
+          return character as JourneyCharacter;
+        }
+        const statRarity = rarityFor(character.favorites) ?? 'N';
+        return {
+          ...character,
+          instanceId: randomUUID(),
+          statRarity,
+          baseStats: generateBaseStats(statRarity, random)
+        };
+      });
+
+      if (reroll) {
+        if (job.itemReward) {
+          throw new Error('Choose your item reward before rerolling.');
+        }
+        const extraCount = (job.inventory ?? []).filter(
+          (i) => i.itemId === 'merry' || i.itemId === 'sunny'
+        ).length;
+        for (let i = 0; i < extraCount; i++) {
+          team.push(randomPoolUnit(job, random));
+        }
+      }
+
       job.starterTeam = team;
       if (reroll) delete job.encounter;
+
       await this.store.saveJob(job);
       return team;
     });
   }
-  async journeyBattle(id: string, opponent?: number, replace?: string, mode: 'idle' | 'clout' = 'clout') {
+
+  async journeyBattle(
+    id: string,
+    opponent?: number,
+    replace?: string,
+    mode: 'idle' | 'clout' = 'clout'
+  ) {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
-      if (!job || job.scope !== 'journeys' || !job.starterTeam || !job.encounter) throw new Error('Depart before fighting.');
+      if (!job || job.scope !== 'journeys' || !job.starterTeam || !job.encounter) {
+        throw new Error('Depart before fighting.');
+      }
+
       const encounter = job.encounter;
+
       if (replace !== undefined) {
         if (encounter.gameOver) throw new Error('This run has ended.');
-        if (!encounter.result || (encounter.result.winner ? encounter.result.winner !== 'left' : encounter.result.left <= encounter.result.right) || encounter.rewardUsed) throw new Error('One replacement is available after each victory.');
-        const index = job.starterTeam.findIndex(c => 'instanceId' in c && c.instanceId === replace);
+        const battleWon = encounter.result
+          ? encounter.result.winner
+            ? encounter.result.winner === 'left'
+            : encounter.result.left > encounter.result.right
+          : false;
+
+        if (!encounter.result || !battleWon || encounter.rewardUsed) {
+          throw new Error('One replacement is available after each victory.');
+        }
+
+        const index = job.starterTeam.findIndex(
+          (c) => 'instanceId' in c && c.instanceId === replace
+        );
         if (index < 0) throw new Error('Team member not found.');
-        if (encounter.events?.[encounter.selected ?? -1]?.id === 'marine') throw new Error('Choose your rescued character through the event.');
-        const ids = new Set(job.starterTeam.map(c => c.id));
+        if (encounter.events?.[encounter.selected ?? -1]?.id === 'marine') {
+          throw new Error('Choose your rescued character through the event.');
+        }
+
         const pool = victoryRerollPool(job, job.starterTeam[index] as JourneyCharacter);
-        if (!pool.length) throw new Error('No different characters match your current reroll filters.');
+        if (!pool.length) {
+          throw new Error('No different characters match your current reroll filters.');
+        }
+
         const character = pool[randomInt(pool.length)];
         const statRarity = rarityFor(character.favorites) ?? 'N';
-        const previous=job.starterTeam[index] as JourneyCharacter;
-        const next:JourneyCharacter={ ...character, instanceId: randomUUID(), statRarity, baseStats: generateBaseStats(statRarity, () => randomInt(0, 2 ** 32) / 2 ** 32) };
-        if(abilityIds(previous).includes(117921)){
-          next.extraAbilities=[...new Set(abilityIds(previous))];next.permanentBoosts=Object.fromEntries(['hp','attack','defense','speed'].map(key=>[key,(previous.permanentBoosts?.[key as keyof typeof previous.permanentBoosts]??0)+3]));
+        const previous = job.starterTeam[index] as JourneyCharacter;
+
+        const next: JourneyCharacter = {
+          ...character,
+          instanceId: randomUUID(),
+          statRarity,
+          baseStats: generateBaseStats(statRarity, () => randomInt(0, 2 ** 32) / 2 ** 32)
+        };
+
+        if (abilityIds(previous).includes(117921)) {
+          next.extraAbilities = [...new Set(abilityIds(previous))];
+          next.permanentBoosts = Object.fromEntries(
+            ['hp', 'attack', 'defense', 'speed'].map((key) => [
+              key,
+              (previous.permanentBoosts?.[key as keyof typeof previous.permanentBoosts] ?? 0) + 3
+            ])
+          );
         }
+
         job.starterTeam[index] = next;
         encounter.rewardUsed = true;
       } else {
-        if (!Number.isInteger(opponent) || opponent! < 0 || opponent! >= encounter.teams.length) throw new Error('Choose an opponent.');
+        if (!Number.isInteger(opponent) || opponent! < 0 || opponent! >= encounter.teams.length) {
+          throw new Error('Choose an opponent.');
+        }
+
         const event = encounter.events?.[opponent!];
-        if (event && event.status !== 'battle' && !encounter.result) throw new Error('This event has no battle ready.');
-        if (encounter.selected !== undefined && encounter.selected !== opponent) throw new Error('This pathway is already selected.');
-        if (event && !['battle', 'reward', 'complete'].includes(event.status)) throw new Error('Choose an event option first.');
-        if (event?.id === 'creature') throw new Error('This event has no battle.');
+        if (event && event.status !== 'battle' && !encounter.result) {
+          throw new Error('This event has no battle ready.');
+        }
+        if (encounter.selected !== undefined && encounter.selected !== opponent) {
+          throw new Error('This pathway is already selected.');
+        }
+        if (event && !['battle', 'reward', 'complete'].includes(event.status)) {
+          throw new Error('Choose an event option first.');
+        }
+        if (event?.id === 'creature') {
+          throw new Error('This event has no battle.');
+        }
+
         if (!encounter.result) {
           encounter.selected = opponent;
           if (event) mode = 'idle';
-          if (encounter.teams[opponent!].some(c => c.boss)) mode = 'idle';
+          if (encounter.teams[opponent!].some((c) => c.boss)) mode = 'idle';
+
           if (mode === 'idle') {
-            encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32, encounter.stage);
-            if (!encounter.machineUsed && (encounter.replay.resetSide!==undefined || encounter.replay.winner === 'right' && job.inventory?.some(item => item.itemId === 'machine'))) {
+            const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+            encounter.replay = simulateBattle(
+              job.starterTeam as JourneyCharacter[],
+              encounter.teams[opponent!],
+              random,
+              encounter.stage
+            );
+
+            const hasMachine = job.inventory?.some((item) => item.itemId === 'machine');
+            const shouldRetry =
+              !encounter.machineUsed &&
+              (encounter.replay.resetSide !== undefined ||
+                (encounter.replay.winner === 'right' && hasMachine));
+
+            if (shouldRetry) {
               encounter.machineUsed = true;
               const initialAttempt = encounter.replay;
-              initialAttempt.floor=job.arenaWins??0;
-              encounter.replay = simulateBattle(job.starterTeam as JourneyCharacter[], encounter.teams[opponent!], () => randomInt(0, 2 ** 32) / 2 ** 32, encounter.stage);
+              initialAttempt.floor = job.arenaWins ?? 0;
+
+              encounter.replay = simulateBattle(
+                job.starterTeam as JourneyCharacter[],
+                encounter.teams[opponent!],
+                random,
+                encounter.stage
+              );
               encounter.replay.initialAttempt = initialAttempt;
-              encounter.replay.retryTitle=initialAttempt.resetSide!==undefined?'Reset':'Future Machine No. 8';
+              encounter.replay.retryTitle =
+                initialAttempt.resetSide !== undefined ? 'Reset' : 'Future Machine No. 8';
             }
+
             const { left, right, winner } = encounter.replay;
-            for(const unit of job.starterTeam as JourneyCharacter[]){const update=encounter.replay.updates?.[unit.instanceId];if(update)Object.assign(unit,update);}
+
+            for (const unit of job.starterTeam as JourneyCharacter[]) {
+              const update = encounter.replay.updates?.[unit.instanceId];
+              if (update) {
+                Object.assign(unit, update);
+              }
+            }
+
             encounter.replay.floor = job.arenaWins ?? 0;
+
             if (winner === 'left') {
               this.advanceFloor(job);
               if (event?.id === 'marine') {
-                event.reward = newUnit(eventCharacter(CAPTIVE_IDS[randomInt(CAPTIVE_IDS.length)])); event.status = 'reward'; encounter.rewardUsed = true;
+                event.reward = newUnit(eventCharacter(CAPTIVE_IDS[randomInt(CAPTIVE_IDS.length)]));
+                event.status = 'reward';
+                encounter.rewardUsed = true;
               }
             }
+
             encounter.result = { left, right, winner, mode };
-          } else encounter.result = { left: favoriteTotal(job.starterTeam), right: favoriteTotal(encounter.teams[opponent!]) };
-          if (event && event.status === 'battle') event.status = 'complete';
-          const lost = encounter.result.winner ? encounter.result.winner === 'right' : encounter.result.left < encounter.result.right;
+          } else {
+            encounter.result = {
+              left: favoriteTotal(job.starterTeam),
+              right: favoriteTotal(encounter.teams[opponent!])
+            };
+          }
+
+          if (event && event.status === 'battle') {
+            event.status = 'complete';
+          }
+
+          const lost = encounter.result.winner
+            ? encounter.result.winner === 'right'
+            : encounter.result.left < encounter.result.right;
+
           if (lost) {
             job.lives = Math.max(0, (job.lives ?? 3) - 1);
             if (job.lives === 0) {
               this.resetRun(job);
-              // Retain the terminal result for idempotent retries, until the next departure.
               encounter.gameOver = true;
               job.encounter = encounter;
             }
           }
         }
       }
+
       await this.store.saveJob(job);
-      return { lives: job.lives ?? 3, gameOver: !!encounter.gameOver, result: encounter.result, replay: encounter.replay, arenaWins: job.arenaWins ?? 0, inventory: job.inventory ?? [], itemReward: job.itemReward ?? null, characters: job.starterTeam, encounter: job.encounter, rewardUsed: !!encounter.rewardUsed };
+      return {
+        lives: job.lives ?? 3,
+        gameOver: Boolean(encounter.gameOver),
+        result: encounter.result,
+        replay: encounter.replay,
+        arenaWins: job.arenaWins ?? 0,
+        inventory: job.inventory ?? [],
+        itemReward: job.itemReward ?? null,
+        characters: job.starterTeam,
+        encounter: job.encounter,
+        rewardUsed: Boolean(encounter.rewardUsed)
+      };
     });
   }
+
   private advanceFloor(job: Job) {
     job.arenaWins = (job.arenaWins ?? 0) + 1;
-    if (job.arenaWins % 4 === 0) job.itemReward = { id: randomUUID(), choices: rewardChoices(job.inventory ?? [], () => randomInt(0, 2 ** 32) / 2 ** 32) };
+    if (job.arenaWins % 4 === 0) {
+      job.itemReward = {
+        id: randomUUID(),
+        choices: rewardChoices(job.inventory ?? [], () => randomInt(0, 2 ** 32) / 2 ** 32)
+      };
+    }
   }
+
   async journeyEvent(id: string, action: EventAction) {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
-      if (!job || job.scope !== 'journeys' || !job.starterTeam || !job.encounter || job.encounter.gameOver) throw new Error('Depart before choosing an event.');
-      const encounter = job.encounter, event = encounter.events?.[action.index];
-      if (!event || encounter.result && event.status !== 'reward' && event.status !== 'complete') throw new Error('Event not available.');
-      if (encounter.selected !== undefined && encounter.selected !== action.index) throw new Error('This pathway is already selected.');
-      if (event.status === 'complete') return inventoryView(job);
+      if (!job || job.scope !== 'journeys' || !job.starterTeam || !job.encounter || job.encounter.gameOver) {
+        throw new Error('Depart before choosing an event.');
+      }
+
+      const encounter = job.encounter;
+      const event = encounter.events?.[action.index];
+      if (!event || (encounter.result && event.status !== 'reward' && event.status !== 'complete')) {
+        throw new Error('Event not available.');
+      }
+      if (encounter.selected !== undefined && encounter.selected !== action.index) {
+        throw new Error('This pathway is already selected.');
+      }
+      if (event.status === 'complete') {
+        return inventoryView(job);
+      }
+
       const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+
       if (event.status === 'choice') {
-        if (!['yes', 'no'].includes(action.choice ?? '')) throw new Error('Choose Yes or No.');
-        encounter.selected = action.index;
-        if (action.choice === 'no') { event.status = 'complete'; this.advanceFloor(job); }
-        else if (event.id === 'creature') {
-          if (!(job.starterTeam as JourneyCharacter[]).some(c => !c.empty && !c.soulGem)) throw new Error('No units are eligible for a Soul Gem. Choose No to continue.');
-          event.status = 'target';
+        if (!['yes', 'no'].includes(action.choice ?? '')) {
+          throw new Error('Choose Yes or No.');
         }
-        else {
-          encounter.teams[action.index] = sample(MARINE_IDS, 5, random).map(id => ({ ...newUnit(eventCharacter(id), random), marine: true }));
+
+        encounter.selected = action.index;
+
+        if (action.choice === 'no') {
+          event.status = 'complete';
+          this.advanceFloor(job);
+        } else if (event.id === 'creature') {
+          const eligible = (job.starterTeam as JourneyCharacter[]).some(
+            (c) => !c.empty && !c.soulGem
+          );
+          if (!eligible) {
+            throw new Error('No units are eligible for a Soul Gem. Choose No to continue.');
+          }
+          event.status = 'target';
+        } else {
+          encounter.teams[action.index] = sample(MARINE_IDS, 5, random).map((id) => ({
+            ...newUnit(eventCharacter(id), random),
+            marine: true
+          }));
           delete encounter.stage;
           event.status = 'battle';
         }
       } else if (event.status === 'target' || event.status === 'reward') {
         const team = job.starterTeam as JourneyCharacter[];
-        const index = team.findIndex(c => c.instanceId === action.target && (event.status === 'reward' || !c.empty && !c.soulGem));
-        if (index < 0) throw new Error('Choose an eligible team slot.');
-        if (event.status === 'target') { team[index].soulGem = true; this.advanceFloor(job); }
-        else { if (!event.reward) throw new Error('Reward missing.'); team[index] = event.reward; delete event.reward; }
+        const index = team.findIndex(
+          (c) =>
+            c.instanceId === action.target &&
+            (event.status === 'reward' || (!c.empty && !c.soulGem))
+        );
+        if (index < 0) {
+          throw new Error('Choose an eligible team slot.');
+        }
+
+        if (event.status === 'target') {
+          team[index].soulGem = true;
+          this.advanceFloor(job);
+        } else {
+          if (!event.reward) throw new Error('Reward missing.');
+          team[index] = event.reward;
+          delete event.reward;
+        }
+
         event.status = 'complete';
-      } else throw new Error('Fight the Marines to finish this event.');
+      } else {
+        throw new Error('Fight the Marines to finish this event.');
+      }
+
       await this.store.saveJob(job);
       return inventoryView(job);
     });
   }
+
   private resetRun(job: Job) {
     const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
-    job.starterTeam = starterTeam(Object.values(job.pool), random).map(c => newUnit(c, random));
+    job.starterTeam = starterTeam(Object.values(job.pool), random).map((c) => newUnit(c, random));
     job.lives = 3;
     job.arenaWins = 0;
     job.inventory = [];
     delete job.itemReward;
-    delete job.pendingCatch; delete job.itemNotice; delete job.fusionNotice; delete job.wishCandidates;
+    delete job.pendingCatch;
+    delete job.itemNotice;
+    delete job.fusionNotice;
+    delete job.wishCandidates;
     delete job.encounter;
   }
+
   async journeyReset(id: string) {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
-      if (!job || job.scope !== 'journeys' || job.state !== 'complete' || !job.starterTeam) throw new Error('Roll a team before starting a new run.');
+      if (!job || job.scope !== 'journeys' || job.state !== 'complete' || !job.starterTeam) {
+        throw new Error('Roll a team before starting a new run.');
+      }
       this.resetRun(job);
       await this.store.saveJob(job);
       return inventoryView(job);
     });
   }
+
   async journeyInventory(id: string, action?: InventoryAction) {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
       if (!job || job.scope !== 'journeys') throw new Error('Journey not found.');
+
       if (action) {
         applyInventoryAction(job, action, () => randomInt(0, 2 ** 32) / 2 ** 32);
         await this.store.saveJob(job);
       }
+
       return inventoryView(job);
     });
   }
+
   async journeySearch(id: string, query: string) {
     await this.init();
     const source = await this.store.getJob(id);
-    if (!source || source.scope !== 'journeys' || (source.inventory ?? []).filter(item => item.itemId === 'dragonball').length < 7) throw new Error('Collect seven Dragon Balls first.');
+    const hasDragonBalls =
+      (source?.inventory ?? []).filter((item) => item.itemId === 'dragonball').length >= 7;
+
+    if (!source || source.scope !== 'journeys' || !hasDragonBalls) {
+      throw new Error('Collect seven Dragon Balls first.');
+    }
+
     query = query.trim();
-    if (query.length < 2 || query.length > 80) throw new Error('Enter 2–80 characters.');
-    const local = Object.values(source.pool).filter(c => c.name.toLowerCase().includes(query.toLowerCase()));
+    if (query.length < 2 || query.length > 80) {
+      throw new Error('Enter 2–80 characters.');
+    }
+
+    const local = Object.values(source.pool).filter((c) =>
+      c.name.toLowerCase().includes(query.toLowerCase())
+    );
+
     let remote: import('../types').PoolCharacter[] = [];
-    try { remote = this.providers.searchCharacters ? await this.providers.searchCharacters(query) : []; }
-    catch (error) { if (!local.length) throw error; }
-    // Network retries must not hold the global mutation lock or stall other players.
+    try {
+      remote = this.providers.searchCharacters
+        ? await this.providers.searchCharacters(query)
+        : [];
+    } catch (error) {
+      if (!local.length) throw error;
+    }
+
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
-      if (!job || job.scope !== 'journeys' || (job.inventory ?? []).filter(item => item.itemId === 'dragonball').length < 7) throw new Error('Collect seven Dragon Balls first.');
-      job.wishCandidates = [...new Map([...remote, ...local].map(c => [c.id, c])).values()].slice(0, 12);
+      const ballsValid =
+        (job?.inventory ?? []).filter((item) => item.itemId === 'dragonball').length >= 7;
+
+      if (!job || job.scope !== 'journeys' || !ballsValid) {
+        throw new Error('Collect seven Dragon Balls first.');
+      }
+
+      job.wishCandidates = [
+        ...new Map([...remote, ...local].map((c) => [c.id, c])).values()
+      ].slice(0, 12);
+
       await this.store.saveJob(job);
       return job.wishCandidates;
     });
   }
+
   async cancel(id: string) {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
       if (!job) throw new Error('Import not found.');
-      if (!activeStates.has(job.state)) return job;
+      if (!ACTIVE_STATES.has(job.state)) return job;
+
       this.controllers.get(id)?.abort();
       this.queue = this.queue.filter((queued) => queued !== id);
       job.state = 'cancelled';
-      job.message = 'Import cancelled. Collected characters are saved; you can roll or resume the import.';
+      job.message =
+        'Import cancelled. Collected characters are saved; you can roll or resume the import.';
       job.updatedAt = new Date().toISOString();
+
       await this.store.saveJob(job);
       return job;
     });
   }
+
   private kick() {
     if (this.running) return;
     this.running = true;
-    void this.drain().catch((error) => console.error('Import queue stopped:', error)).finally(() => {
-      this.running = false;
-      if (this.queue.length) this.kick();
-    });
+
+    void this.drain()
+      .catch((error) => console.error('Import queue stopped:', error))
+      .finally(() => {
+        this.running = false;
+        if (this.queue.length) this.kick();
+      });
   }
+
   private async persist(job: Job, signal: AbortSignal) {
     await this.serialize(async () => {
       signal.throwIfAborted();
@@ -325,50 +676,85 @@ export class Engine {
       await this.store.saveJob(job);
     });
   }
+
   private async drain() {
     while (this.queue.length) {
       const id = this.queue.shift()!;
       const controller = new AbortController();
       this.controllers.set(id, controller);
       const signal = controller.signal;
+
       const job = await this.store.getJob(id);
-      if (!job || !activeStates.has(job.state)) { this.controllers.delete(id); continue; }
+      if (!job || !ACTIVE_STATES.has(job.state)) {
+        this.controllers.delete(id);
+        continue;
+      }
+
       try {
         if (!job.listed) {
-          job.state = 'listing'; job.message = 'Reading anime and manga lists…';
+          job.state = 'listing';
+          job.message = 'Reading anime and manga lists…';
           await this.persist(job, signal);
-          job.titles = job.demo ? demoTitles : await this.providers.lists(job.username, job.includePlanned, signal);
+
+          job.titles = job.demo
+            ? demoTitles
+            : await this.providers.lists(job.username, job.includePlanned, signal);
           job.listed = true;
         }
+
         job.state = 'fetching';
         await this.persist(job, signal);
+
         for (const title of job.titles) {
           signal.throwIfAborted();
           const key = titleKey(title);
           if (job.done.includes(key)) continue;
+
           job.message = `Fetching characters from ${title.name}…`;
           await this.persist(job, signal);
+
           try {
             let cast;
-            if (job.demo) { await sleep(this.demoDelay, undefined, { signal }); cast = demoCast(title); }
-            else {
+            if (job.demo) {
+              await sleep(this.demoDelay, undefined, { signal });
+              cast = demoCast(title);
+            } else {
               cast = await this.store.cast(key);
-              if (cast === null) { cast = await this.providers.cast(title, signal); await this.store.saveCast(key, cast); }
+              if (cast === null) {
+                cast = await this.providers.cast(title, signal);
+                await this.store.saveCast(key, cast);
+              }
             }
+
             signal.throwIfAborted();
             mergeCast(job.pool, title, cast);
             job.done.push(key);
             delete job.failures[key];
-          } catch (error) { signal.throwIfAborted(); job.failures[key] = error instanceof Error ? error.message : 'Could not fetch this cast.'; }
+          } catch (error) {
+            signal.throwIfAborted();
+            job.failures[key] =
+              error instanceof Error ? error.message : 'Could not fetch this cast.';
+          }
+
           await this.persist(job, signal);
         }
+
         job.state = Object.keys(job.failures).length ? 'partial' : 'complete';
-        job.message = job.state === 'partial' ? 'Some titles could not be fetched. You can roll now or retry them.' : job.titles.length ? 'Your character pool is ready.' : 'No entries matched this import.';
+        job.message =
+          job.state === 'partial'
+            ? 'Some titles could not be fetched. You can roll now or retry them.'
+            : job.titles.length
+              ? 'Your character pool is ready.'
+              : 'No entries matched this import.';
+
         await this.persist(job, signal);
       } catch (error) {
         if (signal.aborted) continue;
-        job.state = 'error'; job.message = error instanceof Error ? error.message : 'Import failed.';
-        await this.persist(job, signal).catch((error) => { if (!signal.aborted) throw error; });
+        job.state = 'error';
+        job.message = error instanceof Error ? error.message : 'Import failed.';
+        await this.persist(job, signal).catch((err) => {
+          if (!signal.aborted) throw err;
+        });
       } finally {
         this.controllers.delete(id);
       }
