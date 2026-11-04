@@ -30,7 +30,7 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; color: #8c868c; border-color: #494249; background: #171517; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 ::selection { color: #080808; background: var(--accent); }
-.shell { width: min(1180px, calc(100% - 64px)); margin: 0 auto; }
+.shell { max-width: 1600px; width: calc(100% - 64px); margin: 0 auto; }
 .skip-link { position: absolute; left: 16px; top: -100px; z-index: 10; padding: 10px; background: #080808; color: var(--accent); }
 .skip-link:focus { top: 10px; }
 .site-header { min-height: 76px; display: flex; gap: 40px; align-items: center; border-bottom: 2px solid var(--accent); }

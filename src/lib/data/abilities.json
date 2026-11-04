@@ -86,7 +86,7 @@
   {
     "characterId": 87275,
     "characterName": "Kaneki, Ken",
-    "title": "I am- a ghoul.",
+    "title": "I am — a ghoul.",
     "description": "Whenever another unit dies, heals 15% of maximum HP and gains +5 Attack for the rest of the battle."
   },
   {
@@ -135,7 +135,7 @@
     "characterId": 109929,
     "characterName": "Kageyama, Shigeo",
     "title": "100%",
-    "description": "A counter rises by 3 each second. At 100, gains +50 to every stat for this battle."
+    "description": "A counter rises by 6 each second. At 100, gains +50 to every stat for this battle."
   },
   {
     "characterId": 124731,
@@ -201,7 +201,7 @@
     "characterId": 80,
     "characterName": "Yagami, Light",
     "title": "Death Note",
-    "description": "Does not attack. After 12 seconds, deals lethal damage to the strongest enemy by current total stats."
+    "description": "Does not attack. Every 12 seconds, deals lethal damage to the strongest enemy by current total stats (deals 15% damage to bosses)."
   },
   {
     "characterId": 71,
@@ -273,7 +273,7 @@
     "characterId": 141358,
     "characterName": "All For One",
     "title": "All For One",
-    "description": "Last-hit kills permanently grant the victim's passive abilities, up to the normal three-passive limit."
+    "description": "Wields stolen Quirks with immense destructive force."
   },
   {
     "characterId": 18769,
@@ -441,12 +441,18 @@
     "characterId": 2072,
     "characterName": "Portgas D., Ace",
     "title": "Dai Enkai: Entei",
-    "description": "Every 5 seconds, unleashes an area attack on all enemies that inflicts Burn."
+    "description": "Once per battle after 5 seconds, unleashes an area attack on all enemies that inflicts Burn."
   },
   {
     "characterId": 305,
     "characterName": "Sanji",
     "title": "Diable Jambe",
     "description": "Every 5 seconds, strikes for double damage and inflicts Burn."
-    }
+  },
+  {
+    "characterId": 23277,
+    "characterName": "Meruem",
+    "title": "Aura Synthesis",
+    "description": "Consumes enemies he defeats, gaining their abilities."
+  }
 ]

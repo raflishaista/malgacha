@@ -1,7 +1,7 @@
-import definitions from './data/items.json';
-import type { JourneyCharacter } from './types';
 import { abilityIds } from './battle/abilities/catalog';
 import { keywordsFor } from './battle/keywords';
+import definitions from './data/items.json';
+import type { JourneyCharacter } from './types';
 export type ItemCategory = 'relic' | 'equipment' | 'consumable';
 export type ItemRarity = 'R' | 'SR' | 'SSR' | 'UR';
 export type ItemDefinition = { name: string; category: ItemCategory; rarity: ItemRarity; unique: boolean; description: string };
@@ -19,7 +19,7 @@ export const CATCH_RATES = {
 };
 export const isBall = (id: ItemId): id is keyof typeof CATCH_RATES => id in CATCH_RATES;
 export const relicCount = (inventory: ItemInstance[], id: ItemId) => inventory.filter(item => item.itemId === id).length;
-export const rerollFilter = (inventory: ItemInstance[]) => relicCount(inventory, 'coin') * 50;
+export const rerollFilter = (inventory: ItemInstance[]) => relicCount(inventory, 'skin') * 20;
 export function rollItem(inventory: ItemInstance[], random = Math.random, rarity?: ItemRarity): ItemId {
   const eligible = (Object.keys(ITEMS) as ItemId[]).filter(id => !ITEMS[id].unique || !inventory.some(item => item.itemId === id));
   if (!rarity) {

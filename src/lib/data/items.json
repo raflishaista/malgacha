@@ -11,14 +11,14 @@
     "category": "equipment",
     "rarity": "R",
     "unique": false,
-    "description": "Grants +15 Attack."
+    "description": "Grants +30 Attack."
   },
   "airgear": {
     "name": "Air Gear",
     "category": "equipment",
     "rarity": "R",
     "unique": false,
-    "description": "Grants +15 Speed."
+    "description": "Grants +30 Speed."
   },
   "finger": {
     "name": "Sukuna’s Finger",
@@ -27,12 +27,12 @@
     "unique": false,
     "description": "Adds one Host of Sukuna stack. At 5: King of Poison. At 10: Cleave. At 15: Incomplete Malevolent Shrine. At 20: incarnate as Sukuna, upgrading both attacks. Stacks are lost on replacement."
   },
-  "coin": {
+  "skin": {
     "name": "Tattoed Inmate Skin",
     "category": "relic",
     "rarity": "R",
     "unique": false,
-    "description": "Each skin guides to treasure, raising the minimum favorites filter for victory rerolls by 10. Stacks."
+    "description": "Each skin guides to treasure, raising the minimum favorites filter for victory rerolls by 20. Stacks."
   },
   "senzubean": {
     "name": "Senzu Bean (WIP)",
@@ -67,7 +67,7 @@
     "category": "equipment",
     "rarity": "SR",
     "unique": false,
-    "description": "Grants +25 Speed and a very small chance to dodge incoming attacks."
+    "description": "Grants +20 Speed and a very small chance to dodge incoming attacks."
   },
   "drug": {
     "name": "Quirk-Destroying Drug",
@@ -109,7 +109,7 @@
     "category": "equipment",
     "rarity": "SSR",
     "unique": false,
-    "description": "Grants +20 Attack. Attacks inflict NEGATED for 6 seconds, suppressing passive abilities and keywords. Reapplication refreshes the duration."
+    "description": "Grants +15 Attack. Attacks inflict NEGATED for 6 seconds, suppressing passive abilities and keywords. Reapplication refreshes the duration."
   },
   "journal": {
     "name": "Grandpa’s Hissatsu Journal",

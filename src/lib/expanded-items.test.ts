@@ -1,9 +1,9 @@
 import { expect, it } from 'vitest';
-import { ITEMS, ITEM_RARITY_WEIGHTS, rollItem, rewardChoices, CATCH_RATES, canUseOn, type ItemId } from './items';
-import { newUnit, applyInventoryAction, victoryRerollPool, emptySlot } from './server/inventory';
-import { fuseUnits } from './server/item-effects';
 import { abilityIds } from './battle/abilities';
 import { keywordsFor } from './battle/keywords';
+import { CATCH_RATES, ITEMS, ITEM_RARITY_WEIGHTS, canUseOn, rewardChoices, rollItem, type ItemId } from './items';
+import { applyInventoryAction, emptySlot, newUnit, victoryRerollPool } from './server/inventory';
+import { fuseUnits } from './server/item-effects';
 import { statTotal } from './stats';
 import type { Job, JourneyCharacter } from './types';
 function seeded(initial = 17) { let seed = initial; return () => ((seed = (Math.imul(seed,1664525)+1013904223)>>>0)/2**32); }
@@ -39,9 +39,9 @@ it('bosses cannot be caught and catches survive saving until placed into an empt
   const caught=structuredClone(j.pendingCatch!);const slot=emptySlot();j.starterTeam![0]=slot;
   applyInventoryAction(j,{action:'replace-catch',target:slot.instanceId});expect(j.starterTeam![0]).toEqual(caught);expect(j.pendingCatch).toBeUndefined();
 });
-it('reroll coins and Philosopher’s Stone restrict candidates without changing the import pool', () => {
+it('reroll skins and Philosopher’s Stone restrict candidates without changing the import pool', () => {
   const j=job();j.pool=Object.fromEntries([unit(1,50),unit(2,51),unit(3,4000),unit(4,20000)].map(c=>[c.id,c]));
-  grant(j,'coin');expect(victoryRerollPool(j,j.starterTeam![0] as JourneyCharacter).map(c=>c.id)).toEqual([2,3,4]);
+  grant(j,'skin');expect(victoryRerollPool(j,j.starterTeam![0] as JourneyCharacter).map(c=>c.id)).toEqual([2,3,4]);
   grant(j,'stone');expect(victoryRerollPool(j,j.starterTeam![1] as JourneyCharacter).map(c=>c.id)).toEqual([3,4]);expect(Object.keys(j.pool)).toHaveLength(4);
 });
 it('Drug removes innate abilities permanently and keywords do not stack', () => {

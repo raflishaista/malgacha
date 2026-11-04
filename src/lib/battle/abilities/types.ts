@@ -17,6 +17,8 @@ export interface AbilityState {
   card?: string;
   channeling?: boolean;
   choice?: 'rock' | 'scissors' | 'paper';
+  adapted?: Set<number>;
+  pendingAdaptation?: Set<number>;
 }
 
 export interface TimedActivation {

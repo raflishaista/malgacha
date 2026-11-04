@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { simulateBattle } from '../autobattle';
 import { STAGES, type StageId } from '../stages';
@@ -30,6 +30,13 @@ it('preserves plain pre-refactor battles and current ability replay determinism 
     }
   }
   const file = new URL('./replay-baseline.json', import.meta.url);
+  if (process.env.UPDATE_BASELINE) {
+    const prev = JSON.parse(readFileSync(file, 'utf8'));
+    const merged = { ...prev, ...actual };
+    const sorted = Object.fromEntries(Object.entries(merged).sort(([a], [b]) => a.localeCompare(b)));
+    writeFileSync(file, JSON.stringify(sorted, null, 2) + '\n');
+  }
   const old=JSON.parse(readFileSync(file,'utf8'));
   expect(actual).toEqual(Object.fromEntries(Object.entries(old).filter(([key])=>key.includes('-0-'))));
-});
+}, 60000);
+

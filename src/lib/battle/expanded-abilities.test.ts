@@ -11,7 +11,7 @@ const team=(id=900000)=>Array.from({length:5},(_,i)=>unit(id+i));
 function match(id:number,random=()=>.1){const left=team(),right=team(910000);left[0].id=id;return simulateBattle(left,right,random);}
 it('registers all catalog passives including summons, copies, progression and death reactions',()=>{
  expect(catalog.filter(ability=>!IMPLEMENTED_ABILITIES.includes(ability.characterId)).map(a=>a.title)).toEqual([]);
- for(const id of [17,2473,7035,246,913,40,5,417,4003,38005,118735,35252,2257,109929,124731,1,1374,1375,2589,15,72921,177491,203839,5578,2511,117921,141358,9700,75216,140046,177542,2867,132742,28,193067,135879,36753])expect(IMPLEMENTED_ABILITIES).toContain(id);
+ for(const id of [17,2473,7035,246,913,40,5,417,4003,38005,118735,35252,2257,109929,124731,1,1374,1375,2589,15,72921,177491,203839,5578,2511,117921,141358,23277,9700,75216,140046,177542,2867,132742,28,193067,135879,36753])expect(IMPLEMENTED_ABILITIES).toContain(id);
 });
 it('Naruto clones once, without recursion, on either team and restores the original roster',()=>{
  for(const side of [0,1]){const sides=[team(),team(910000)];sides[side][0].id=17;const before=structuredClone(sides);const b=simulateBattle(sides[0],sides[1],()=>.1);expect(b.units.filter(u=>u.summonOwner!==undefined)).toHaveLength(1);expect(b.frames![0].positions!.at(-1)).toBe(5);expect(sides).toEqual(before);}
@@ -56,8 +56,8 @@ it('Simon absorbs allies, gains +50 per ally and inherits their first two passiv
 it('Spike replaces only four initial allies with 620 BST Bebop crew members',()=>{
  const left=[...team(),unit(920000)],right=team(910000);left[0].id=1;const b=simulateBattle(left,right,()=>.1),f=b.frames![0];expect([1,2,3,4].map(i=>f.unitOverrides![i].id)).toEqual([2,3,4,16]);expect([1,2,3,4].every(i=>statTotal(f.unitOverrides![i].baseStats!)===620)).toBe(true);expect(f.unitOverrides?.[5]).toBeUndefined();
 });
-it('Shigeo counts at three points per second and gains +50 all stats at 100',()=>{
- const b=match(109929);expect(b.frames!.find(f=>f.time===1)!.counters![0].value).toBe(3);const f=b.frames!.find(f=>f.counters?.[0]?.value===100)!;expect(f.time).toBe(34);expect(f.speed[0]).toBe(175);
+it('Shigeo counts at six points per second and gains +50 all stats at 100',()=>{
+ const b=match(109929);expect(b.frames!.find(f=>f.time===1)!.counters![0].value).toBe(6);const f=b.frames!.find(f=>f.counters?.[0]?.value===100)!;expect(f.time).toBe(17);expect(f.speed[0]).toBe(175);
 });
 it('Asta triples damage against configured magic series; Utena also recognizes Soul Gems',()=>{
  expect(MAGIC_SERIES).toEqual(expect.arrayContaining(['black clover','magi','cardcaptor sakura','little witch academia','ao no exorcist']));
@@ -111,9 +111,9 @@ it('Tetsuo gains +15 stats per absorbed ally and heals after a fatal hit',()=>{
 it('Advance gains +40 all stats and expires fatally after five seconds',()=>{
  const left=team(),right=team(910000);left[0].id=132742;left[0].baseStats.hp=200;left[0].keywords=['TAUNT'];right.slice(1).forEach(c=>c.baseStats.speed=1);const b=simulateBattle(left,right,()=>.1);const proc=b.events.find(e=>e.ability==='Advance')!;expect(proc).toBeDefined();expect(b.frames!.some(f=>f.speed[0]===165)).toBe(true);expect(b.events.some(e=>e.target===0&&e.ability==='Time expired'&&Math.abs(e.time-proc.time-5)<.001)).toBe(true);
 });
-it('All For One gains a passive only when it lands the killing hit',()=>{
- const left=team(),right=team(910000);left[0].id=141358;left[0].baseStats.attack=10000;left[0].baseStats.speed=10000;right.forEach(c=>{c.baseStats.hp=1;c.extraAbilities=[22036];});const b=simulateBattle(left,right,()=>.1);expect(b.updates?.[left[0].instanceId]?.extraAbilities).toContain(22036);
- const other=team();other[0].id=141358;other[1].baseStats.attack=10000;other[1].baseStats.speed=10000;const c=simulateBattle(other,right,()=>.1);expect(c.updates?.[other[0].instanceId]?.extraAbilities).toBeUndefined();
+it('Meruem gains a passive only when it lands the killing hit',()=>{
+ const left=team(),right=team(910000);left[0].id=23277;left[0].baseStats.attack=10000;left[0].baseStats.speed=10000;right.forEach(c=>{c.baseStats.hp=1;c.extraAbilities=[22036];});const b=simulateBattle(left,right,()=>.1);expect(b.updates?.[left[0].instanceId]?.extraAbilities).toContain(22036);
+ const other=team();other[0].id=23277;other[1].baseStats.attack=10000;other[1].baseStats.speed=10000;const c=simulateBattle(other,right,()=>.1);expect(c.updates?.[other[0].instanceId]?.extraAbilities).toBeUndefined();
 });
 it('Full Counter does not reflect Yugi self-buffs or boss abilities',()=>{
  const left=team(),right=team(910000);left[0].id=72921;right[0].id=1374;let b=simulateBattle(left,right,()=>0);expect(b.events.some(e=>e.ability==='Mirror Force')).toBe(true);expect(b.events.some(e=>e.ability==='Full Counter')).toBe(false);

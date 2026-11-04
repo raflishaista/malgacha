@@ -1,10 +1,10 @@
-import { ITEMS } from './items';
-import { expect, it } from 'vitest';
 import { render } from 'svelte/server';
-import JourneyInventory from './components/JourneyInventory.svelte';
-import JourneyCharacter from './components/JourneyCharacter.svelte';
+import { expect, it } from 'vitest';
 import ItemReward from './components/ItemReward.svelte';
+import JourneyCharacter from './components/JourneyCharacter.svelte';
+import JourneyInventory from './components/JourneyInventory.svelte';
 import JourneyWish from './components/JourneyWish.svelte';
+import { ITEMS } from './items';
 import { newUnit } from './server/inventory';
 import { fuseUnits } from './server/item-effects';
 const unit = (id: number) => newUnit({id,name:String(id),image:`/${id}.webp`,url:'',favorites:0,titles:[]},()=>.5);
@@ -13,8 +13,8 @@ it('reward cards display rarity, names and descriptions', () => {
   expect(html).toContain('Poké Ball');expect(html).toContain('SSR');expect(html).toContain('UR');expect(html).toContain('Catch rates');
 });
 it('stacked relics have one icon with a count and show reroll power', () => {
-  const html=render(JourneyInventory,{props:{inventory:[{instanceId:'a',itemId:'coin'},{instanceId:'b',itemId:'coin'}],team:[unit(1)],disabled:false,onaction:async()=>true}}).body;
-  expect((html.split('aria-label="'+ITEMS.coin.name+'"').slice(1))).toHaveLength(2); // One inventory button and its SVG.
+  const html=render(JourneyInventory,{props:{inventory:[{instanceId:'a',itemId:'skin'},{instanceId:'b',itemId:'skin'}],team:[unit(1)],disabled:false,onaction:async()=>true}}).body;
+  expect((html.split('aria-label="'+ITEMS.skin.name+'"').slice(1))).toHaveLength(2); // One inventory button and its SVG.
   expect(html).toMatch(/class="count[^"]*"[^>]*>2</);expect(html).toContain('>100 favorites');
 });
 it('fused portraits retain both images and equipment dodge appears below BST', () => {

@@ -13,8 +13,9 @@ export function opponentTeams(pool: PoolCharacter[], random = Math.random): Pool
     if (seen.has(signature(team))) {
       // Three distinct windows guarantee a free choice, without unbounded retries.
       const draw = sample(unique, Math.min(10, unique.length), random);
-      team = [0, 1, 2].map(offset => Array.from({ length: 5 }, (_, j) => draw[(offset + j) % draw.length]))
-        .find(candidate => !seen.has(signature(candidate)))!;
+      const candidate = [0, 1, 2].map(offset => Array.from({ length: 5 }, (_, j) => draw[(offset + j) % draw.length]))
+        .find(c => !seen.has(signature(c)));
+      team = candidate ?? sample(unique, 5, random);
     }
     seen.add(signature(team)); teams.push(team);
   }

@@ -154,8 +154,7 @@
     <div class="intro">
       <h1>Jobber Journeys</h1>
       <p>
-        Import your collection and draw a starting team of five. At least one character will
-        have a passive ability.
+        Import your collection, draw a team from it, and journey through 200 floors, battling other teams in the way.
       </p>
     </div>
 

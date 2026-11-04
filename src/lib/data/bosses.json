@@ -28,7 +28,7 @@
     "name": "Mahoraga",
     "image": "https://cdn.myanimelist.net/images/characters/8/625195.webp",
     "title": "Adaptation",
-    "active": false,
+    "active": true,
     "description": "After being affected by an ability once, becomes immune to that ability."
   },
   {

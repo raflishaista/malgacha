@@ -35,6 +35,46 @@
       "description": "Tiamat strikes after 20 seconds. The team with the greater sum of remaining HP percentages wins. Ties favor your team.",
       "effect": true
     },
+    "morioh": {
+      "name": "Morioh",
+      "description": "A murderer eliminates one random character from each team quietly.",
+      "effect": true
+    },
+    "hell": {
+      "name": "Hell",
+      "description": "Doors cover the sky. The Darkness Devil has a chance to appear, to damage all units and inflict WEAKENED.",
+      "effect": true
+    },
+    "infinite_castle": {
+      "name": "Infinite Castle",
+      "description": "A biwa strums every eight seconds, splitting combatants into isolated room matchups.",
+      "effect": true
+    },
+    "inaba": {
+      "name": "Inaba",
+      "description": "A dense fog shrouds the identity and abilities of opponent lineups until battle commences.",
+      "effect": true
+    },
+    "tracen": {
+      "name": "Tracen Academy",
+      "description": "Umamusume from Tracen Academy unleash unpredictable shenanigans periodically.",
+      "effect": true
+    },
+    "alcatraz": {
+      "name": "Alcatraz Tower",
+      "description": "Duelists are elevated to the summit in a chaotic Battle Royale where every unit attacks friend and foe.",
+      "effect": true
+    },
+    "axis": {
+      "name": "Axis",
+      "description": "Caught in a war, both sides are reinforced by mobile suit pilots and commanders.",
+      "effect": true
+    },
+    "tootsuki": {
+      "name": "Totsuki Culinary Academy",
+      "description": "Every six seconds, a Shokugeki occurs and the most injured unit eats the dish to recover 30% HP.",
+      "effect": true
+    },
     "shuchiin": {
       "name": "Shuchiin Academy",
       "description": "No effect.",
@@ -50,13 +90,18 @@
       "description": "No effect.",
       "effect": false
     },
-    "tracen": {
-      "name": "Tracen Academy",
-      "description": "Random effects periodically appear. (WIP)",
+    "starry": {
+      "name": "STARRY",
+      "description": "No effect.",
       "effect": false
     },
-    "tootsuki": {
-      "name": "Tootsuki Culinary Academy",
+    "the765": {
+      "name": "765 Productions Office",
+      "description": "No effect.",
+      "effect": false
+    },
+    "anteiku": {
+      "name": "Anteiku",
       "description": "No effect.",
       "effect": false
     }
@@ -66,6 +111,9 @@
     "sweepDamage": 0.2,
     "swapSeconds": 6,
     "impactSeconds": 20,
+    "biwaSeconds": 8,
+    "shokugekiSeconds": 6,
+    "tracenSeconds": 6,
     "effectChance": 0.5
   }
 }

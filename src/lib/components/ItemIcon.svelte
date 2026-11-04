@@ -60,7 +60,7 @@
         fill="#bf402f"
         stroke="none"
       />
-    {:else if id === 'coin'}
+    {:else if id === 'skin'}
       <ellipse cx="32" cy="32" rx="21" ry="24" fill="#b8b7a5" />
       <path d="M32 14v36M23 21h17M23 42h17" stroke="#54534a" />
     {:else if id === 'radar'}

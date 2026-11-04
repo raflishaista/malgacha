@@ -210,17 +210,18 @@ it('Zoro Santoryu grants +66 to all stats when 3 items are equipped', () => {
   }
 });
 
-it('Ace Dai Enkai: Entei periodically deals AoE damage and inflicts Burn', () => {
+it('Ace Dai Enkai: Entei triggers once per battle at 5s, deals AoE damage and inflicts Burn', () => {
   const left = createTeam(0);
   const right = createTeam(1);
   left[0].id = 2072; // Ace
+  right.forEach(c => c.baseStats.hp = 10000); // High HP so battle lasts long
 
   const battle = simulateBattle(left, right, () => 0.5);
-  const enteiAttack = battle.events.find(e => e.ability === 'Dai Enkai: Entei');
-  expect(enteiAttack).toBeDefined();
-  expect(enteiAttack!.time).toBeCloseTo(5, 0.1);
+  const enteiAttacks = battle.events.filter(e => e.ability === 'Dai Enkai: Entei');
+  expect(enteiAttacks).toHaveLength(1);
+  expect(enteiAttacks[0].time).toBeCloseTo(5, 0.1);
 
-  // All right team units should have received Burn
+  // Right team units received Burn
   const burnEvents = battle.events.filter(e => e.kind === 'burn' && e.target >= 5);
   expect(burnEvents.length).toBeGreaterThan(0);
 });
@@ -242,4 +243,61 @@ it('Sanji Diable Jambe periodically strikes a single target for 2x damage and in
   // Target receives Burn
   const burnEvents = battle.events.filter(e => e.kind === 'burn' && e.target >= 5);
   expect(burnEvents.length).toBeGreaterThan(0);
+});
+
+it('Light Yagami Death Note repeats every 12s and deals 15% damage to bosses', () => {
+  const left = createTeam(0);
+  left[0].id = 80; // Light Yagami
+  left[0].baseStats.hp = 10000;
+  for (let i = 1; i < 5; i++) left[i].baseStats.attack = 1;
+
+  // Against 1 boss and ordinary unit
+  const right = createTeam(1);
+  right[0].boss = true;
+  right[0].id = 7407;
+  right[0].baseStats.hp = 50000;
+  for (let i = 1; i < 5; i++) {
+    right[i].baseStats.hp = 10000;
+    right[i].baseStats.attack = 1;
+  }
+
+  const battle = simulateBattle(left, right, () => 0.5);
+  const deathNoteEvents = battle.events.filter(e => e.ability === 'Death Note');
+  expect(deathNoteEvents.length).toBeGreaterThan(1); // Triggers more than once!
+  // When targeting boss (target 5), deals 15% damage (50000 * 0.15 = 7500)
+  const bossEvents = deathNoteEvents.filter(e => e.target === 5);
+  expect(bossEvents.length).toBeGreaterThan(0);
+  expect(bossEvents[0].damage).toBeCloseTo(50000 * 0.15, 1);
+});
+
+it('Megumi summoned Mahoraga has adaptation and becomes immune after being affected once', () => {
+  const left = createTeam(0);
+  const right = createTeam(1);
+  left[0].id = 164470; // Megumi
+  left[0].baseStats.hp = 120;
+  left[0].baseStats.defense = 100;
+  left[0].keywords = ['TAUNT'];
+  for (let i = 1; i < 5; i++) {
+    left[i].baseStats.speed = 10;
+  }
+  right[0].baseStats.attack = 100;
+  right[0].baseStats.speed = 125;
+  right[0].extraAbilities = [4004]; // Dio's The World
+  right[0].baseStats.hp = 10000;
+  for (let i = 1; i < 5; i++) {
+    right[i].baseStats.speed = 10;
+    right[i].baseStats.attack = 10;
+  }
+
+  const battle = simulateBattle(left, right, () => 0.5);
+  const mahoragaIndex = battle.units.findIndex(u => u.id === 240069);
+  expect(mahoragaIndex).toBeGreaterThanOrEqual(0);
+
+  // Time stop 2 (at 23s) happens after Mahoraga is summoned: Mahoraga is affected
+  expect(battle.stops![1].affected).toContain(mahoragaIndex);
+  expect(battle.events.some(e => e.target === mahoragaIndex && e.ability === 'Adapted (The World)')).toBe(true);
+
+  // Time stop 3 (at 36s): Mahoraga is immune!
+  expect(battle.stops![2].affected).not.toContain(mahoragaIndex);
+  expect(battle.events.some(e => e.target === mahoragaIndex && e.ability === 'Immune (The World)')).toBe(true);
 });

@@ -367,14 +367,23 @@ export class Engine {
           encounter.selected = opponent;
           if (event) mode = 'idle';
           if (encounter.teams[opponent!].some((c) => c.boss)) mode = 'idle';
-
           if (mode === 'idle') {
             const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+            const extraBattleRoyaleTeams =
+              encounter.stage === 'alcatraz' && encounter.teams.length >= 3
+                ? [encounter.teams[1], encounter.teams[2]]
+                : undefined;
+            const primaryOpponent =
+              encounter.stage === 'alcatraz' && encounter.teams.length >= 3
+                ? encounter.teams[0]
+                : encounter.teams[opponent!];
+
             encounter.replay = simulateBattle(
               job.starterTeam as JourneyCharacter[],
-              encounter.teams[opponent!],
+              primaryOpponent,
               random,
-              encounter.stage
+              encounter.stage,
+              extraBattleRoyaleTeams
             );
 
             const hasMachine = job.inventory?.some((item) => item.itemId === 'machine');
@@ -390,9 +399,10 @@ export class Engine {
 
               encounter.replay = simulateBattle(
                 job.starterTeam as JourneyCharacter[],
-                encounter.teams[opponent!],
+                primaryOpponent,
                 random,
-                encounter.stage
+                encounter.stage,
+                extraBattleRoyaleTeams
               );
               encounter.replay.initialAttempt = initialAttempt;
               encounter.replay.retryTitle =

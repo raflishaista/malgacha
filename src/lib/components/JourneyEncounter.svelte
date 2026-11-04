@@ -468,12 +468,6 @@
     <p class="note">Stage effects apply to Autobattler. Cloutscaling still compares favorites.</p>
   {/if}
 
-  {#if onreroll}
-    <button disabled={parentBusy || busy || playing} onclick={onreroll}>
-      Reroll team (testing)
-    </button>
-  {/if}
-
   {#if playing}
     <p role="status">Battle in progress. You can view your team here while it runs.</p>
   {/if}
@@ -507,7 +501,65 @@
 
     {#if opponents.length && !rollingStage}
       <section aria-label="Opponents">
-        {#if selectedEvent && selectedEvent.status !== 'battle' && !fought}
+        {#if stage === 'alcatraz' && opponents.length >= 3 && !fought}
+          <div class="alcatraz-preview-screen">
+            <div class="alcatraz-preview-header">
+              <span class="alcatraz-badge">BATTLE ROYALE</span>
+              <h3>Alcatraz Tower: 4-Way Battle Royale</h3>
+              <p>All teams on this floor will battle each other simultaneously!</p>
+            </div>
+            <div class="alcatraz-preview-layout">
+              <!-- Top: Team 1 (Opponent 1) -->
+              <div class="alcatraz-preview-team top-team">
+                <span class="team-tag t1">TEAM 1 (OPPONENT 1)</span>
+                <div class="team-chips">
+                  {#each opponents[0] as c}
+                    <span class="chip">{c.name}</span>
+                  {/each}
+                </div>
+              </div>
+
+              <div class="alcatraz-preview-middle">
+                <!-- Left: Team 4 (Opponent 3) -->
+                <div class="alcatraz-preview-team left-team">
+                  <span class="team-tag t4">TEAM 4 (OPPONENT 3)</span>
+                  <div class="team-chips vertical">
+                    {#each opponents[2] as c}
+                      <span class="chip">{c.name}</span>
+                    {/each}
+                  </div>
+                </div>
+
+                <!-- Center: Arena preview -->
+                <div class="alcatraz-preview-arena">
+                  <span class="swords">⚔️</span>
+                  <strong>FREE-FOR-ALL</strong>
+                  <span>4 TEAMS · 20 HEROES</span>
+                </div>
+
+                <!-- Right: Team 2 (Opponent 2) -->
+                <div class="alcatraz-preview-team right-team">
+                  <span class="team-tag t2">TEAM 2 (OPPONENT 2)</span>
+                  <div class="team-chips vertical">
+                    {#each opponents[1] as c}
+                      <span class="chip">{c.name}</span>
+                    {/each}
+                  </div>
+                </div>
+              </div>
+
+              <!-- Bottom: Team 3 (Your Team) -->
+              <div class="alcatraz-preview-team bottom-team">
+                <span class="team-tag t3 player">TEAM 3 (YOUR TEAM)</span>
+                <div class="team-chips">
+                  {#each currentTeam as c}
+                    <span class="chip player-chip">{c.name}</span>
+                  {/each}
+                </div>
+              </div>
+            </div>
+          </div>
+        {:else if selectedEvent && selectedEvent.status !== 'battle' && !fought}
           <h3>{EVENTS[selectedEvent.id].title}</h3>
           <p>{selectedEvent.status === 'complete' ? 'Event complete.' : 'Choose an event option to continue.'}</p>
           {#if selectedEvent.status !== 'complete'}
@@ -521,9 +573,16 @@
             </button>
           {/if}
           <div class="units">
-            {#each enemy as character (character.instanceId)}
-              <Card {character} team={enemy} hideFavorites={!fought} />
-            {/each}
+            {#if stage === 'inaba' && !fought}
+              <div class="inaba-selected-box">
+                <span class="inaba-mystery-large">???</span>
+                <p>A thick fog obscures the truth of your opponent’s identity…</p>
+              </div>
+            {:else}
+              {#each enemy as character (character.instanceId)}
+                <Card {character} team={enemy} hideFavorites={!fought} />
+              {/each}
+            {/if}
           </div>
         {:else}
           <h3>Choose an opponent</h3>
@@ -560,18 +619,24 @@
                   }}
                 >
                   <span>Opponent {index + 1}</span>
-                  <span class="mini-team">
-                    {#each opponent as character}
-                      <span>
-                        {#if character.image}
-                          <img src={character.image} alt="" />
-                        {:else}
-                          <span class="placeholder">—</span>
-                        {/if}
-                        <span>{character.name}</span>
-                      </span>
-                    {/each}
-                  </span>
+                  {#if stage === 'inaba'}
+                    <div class="inaba-box">
+                      <span class="inaba-mystery">???</span>
+                    </div>
+                  {:else}
+                    <span class="mini-team">
+                      {#each opponent as character}
+                        <span>
+                          {#if character.image}
+                            <img src={character.image} alt="" />
+                          {:else}
+                            <span class="placeholder">—</span>
+                          {/if}
+                          <span>{character.name}</span>
+                        </span>
+                      {/each}
+                    </span>
+                  {/if}
                 </button>
               {/if}
             {/each}
@@ -587,15 +652,19 @@
 
   <div class="actions">
     {#if !opponents.length}
-      <button class="fight-button primary" disabled={busy} onclick={depart}>
-        {busy ? 'Finding opponents…' : 'DEPART'}
+      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={depart}>
+        {busy ? 'Finding opponents…' : itemReward ? 'CLAIM REWARD TO PROCEED' : 'DEPART'}
       </button>
     {:else if selectedEvent?.status === 'complete' && !fought}
       <button class="fight-button primary" disabled={busy || !!itemReward} onclick={depart}>
-        NEXT FLOOR
+        {itemReward ? 'CLAIM REWARD TO PROCEED' : 'NEXT FLOOR'}
+      </button>
+    {:else if stage === 'alcatraz' && !fought && !playing}
+      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={() => { selected = 0; void battle(); }}>
+        ENTER BATTLE ROYALE
       </button>
     {:else if enemy && !fought && !playing}
-      <button class="fight-button primary" disabled={busy} onclick={() => battle()}>
+      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={() => battle()}>
         FIGHT
       </button>
     {:else if fought}
@@ -620,18 +689,12 @@
         </p>
       {/if}
 
-      <button class="fight-button primary" disabled={busy} onclick={depart}>
-        {busy ? 'Finding opponents…' : 'NEXT OPPONENTS'}
+      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={depart}>
+        {busy ? 'Finding opponents…' : itemReward ? 'CLAIM REWARD TO PROCEED' : 'NEXT OPPONENTS'}
       </button>
     {/if}
   </div>
 
-  {#if opponents.length}
-    <p class="note">
-      Opponents come from your imported pool. Unknown favorites count as zero. Encounters reset on reload;
-      your saved team stays the same.
-    </p>
-  {/if}
 </div>
 
 <style>
@@ -802,6 +865,44 @@
     box-shadow: none;
     transform: translate(2px, 2px);
   }
+  .inaba-box {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px 0;
+  }
+  .inaba-mystery {
+    font-family: var(--punch);
+    font-size: 28px;
+    letter-spacing: 4px;
+    color: #a3a3a3;
+  }
+  .inaba-selected-box {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 200px;
+    background: #101010;
+    border: 1px solid var(--line);
+    padding: 32px 16px;
+    text-align: center;
+  }
+  .inaba-mystery-large {
+    font-family: var(--punch);
+    font-size: 48px;
+    letter-spacing: 8px;
+    color: #e5e5e5;
+    margin-bottom: 12px;
+  }
+  .inaba-selected-box p {
+    color: var(--muted);
+    font-size: 14px;
+    max-width: 320px;
+    margin: 0;
+  }
   @media (max-width: 800px) {
     .encounter.departed {
       grid-template-columns: 1fr;
@@ -821,4 +922,130 @@
       grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
+
+  /* Alcatraz Encounter Preview */
+  .alcatraz-preview-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    background: #0d0d0d;
+    border: 1px solid #2a2a2a;
+    padding: 14px;
+    box-sizing: border-box;
+  }
+  .alcatraz-preview-header {
+    text-align: center;
+    border-bottom: 1px solid #222;
+    padding-bottom: 10px;
+  }
+  .alcatraz-badge {
+    background: var(--accent);
+    color: #080808;
+    font-size: 11px;
+    font-family: monospace;
+    font-weight: bold;
+    padding: 2px 6px;
+    letter-spacing: 1px;
+  }
+  .alcatraz-preview-header h3 {
+    margin: 8px 0 4px;
+    font-size: 18px;
+    color: #e8e8e3;
+    font-family: 'Raglan Punch', Impact, sans-serif;
+  }
+  .alcatraz-preview-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .alcatraz-preview-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    width: 100%;
+  }
+  .alcatraz-preview-middle {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+  .alcatraz-preview-team {
+    background: #141414;
+    border: 1px solid #222;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .alcatraz-preview-team.bottom-team {
+    border-color: #57305e;
+    background: #161016;
+  }
+  .team-tag {
+    font-size: 10px;
+    font-family: monospace;
+    font-weight: bold;
+    padding: 2px 5px;
+    width: fit-content;
+  }
+  .team-tag.t1 { background: #0369a1; color: #e0f2fe; }
+  .team-tag.t2 { background: #6b21a8; color: #f3e8ff; }
+  .team-tag.t3.player { background: var(--accent); color: #080808; }
+  .team-tag.t4 { background: #854d0e; color: #fef08a; }
+  .team-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+  }
+  .team-chips.vertical {
+    flex-direction: column;
+  }
+  .team-chips .chip {
+    font-size: 11px;
+    background: #1e1e1e;
+    padding: 3px 6px;
+    border: 1px solid #333;
+    color: #ccc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .team-chips .chip.player-chip {
+    border-color: #bc8eac;
+    color: #fff;
+  }
+  .alcatraz-preview-arena {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    border: 1px dashed #444;
+    background: #090909;
+    min-width: 130px;
+    text-align: center;
+    gap: 4px;
+  }
+  .alcatraz-preview-arena .swords {
+    font-size: 20px;
+  }
+  .alcatraz-preview-arena strong {
+    font-family: 'Raglan Punch', Impact, sans-serif;
+    color: var(--accent);
+    font-size: 14px;
+    letter-spacing: 1px;
+  }
+  .alcatraz-preview-arena span {
+    font-size: 9px;
+    font-family: monospace;
+    color: #777;
+  }
+  @media (max-width: 580px) {
+    .alcatraz-preview-middle {
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+  }
 </style>
+

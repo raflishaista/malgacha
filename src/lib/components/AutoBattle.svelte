@@ -34,8 +34,39 @@
   let board: HTMLDivElement;
   let paused = $state(false);
   let finished = $state(false);
-  let announcement = $state('Battle started.');
+  let announcement = $state(untrack(() => replay.events.find(e => e.time === 0 && e.ability)?.ability ?? 'Battle started.'));
   let togglePause = $state<() => void>(() => {});
+
+  function skipBattle() {
+    elapsed = replay.duration;
+    if (replay.frames?.length) {
+      combatFrame = replay.frames.at(-1);
+      hp = [...combatFrame!.hp];
+    } else {
+      hp = replay.units.map((_, i) => replay.events.filter(e => e.target === i).at(-1)?.hp ?? hp[i]);
+    }
+    finished = true;
+    onfinish();
+  }
+
+  const isBattleRoyale = $derived(
+    replay.stage === 'alcatraz' &&
+    (replay.teamCounts ? replay.teamCounts.length > 2 : (combatFrame?.sides?.some(s => s >= 2) ?? false))
+  );
+
+  function survivorsCount(side: number): number {
+    return replay.units.filter((_, i) =>
+      (combatFrame?.sides?.[i] ?? (i < (replay.leftCount ?? 5) ? 0 : 1)) === side &&
+      hp[i] > 0 &&
+      (combatFrame?.participating?.[i] ?? true)
+    ).length;
+  }
+
+  function teamSize(side: number): number {
+    return replay.units.filter((_, i) =>
+      (combatFrame?.sides?.[i] ?? (i < (replay.leftCount ?? 5) ? 0 : 1)) === side
+    ).length;
+  }
 
   function gauge(unitIndex: number, isRumbling = false): number {
     if (!isRumbling && combatFrame?.inactive?.[unitIndex]) {
@@ -126,17 +157,19 @@
         // Process discrete replay events
         while (eventIndex < replay.events.length && replay.events[eventIndex].time <= elapsed) {
           const event = replay.events[eventIndex];
-          hp[event.target] = event.hp;
+          if (event.target >= 0 && event.hp !== undefined) {
+            hp[event.target] = event.hp;
+          }
 
           if (event.kind === 'capture') {
-            announcement = `${replay.units[event.target].name} is taken by Gun Fiend.`;
+            announcement = `${event.target >= 0 ? replay.units[event.target]?.name ?? 'Unit' : 'Unit'} is taken by Gun Fiend.`;
             eventIndex++;
             continue;
           }
 
           if (event.kind === 'environment') {
-            hit[event.target] = eventIndex;
-            announcement = 'The Kōtotsu sweeps through both teams.';
+            if (event.target >= 0) hit[event.target] = eventIndex;
+            announcement = event.ability ?? 'The Kōtotsu sweeps through both teams.';
             eventIndex++;
             continue;
           }
@@ -163,13 +196,17 @@
             event.kind &&
             !['rumbling', 'burn', 'shrine', 'boss-attack', 'annihilate'].includes(event.kind)
           ) {
-            const actorName = replay.units[event.attacker]?.name ?? 'The stage';
-            announcement = `${actorName} activates ${event.ability}.`;
+            const actorName = event.attacker >= 0 ? replay.units[event.attacker]?.name ?? 'The stage' : 'The stage';
+            announcement = event.ability
+              ? (event.attacker >= 0 && !event.ability.includes(' ') && !event.ability.includes('!')
+                  ? `${actorName} activates ${event.ability}.`
+                  : event.ability)
+              : `${actorName} acts.`;
             eventIndex++;
             continue;
           }
 
-          hit[event.target] = eventIndex;
+          if (event.target >= 0) hit[event.target] = eventIndex;
 
           // Render attack line
           const fromEl = board?.querySelector(`[data-unit="${event.attacker}"]`)?.getBoundingClientRect();
@@ -197,9 +234,9 @@
             });
           }
 
-          const attackerName = replay.units[event.attacker]?.name ?? 'The stage';
-          const targetName = replay.units[event.target].name;
-          const damageStr = event.damage.toFixed(1);
+          const attackerName = event.attacker >= 0 ? replay.units[event.attacker]?.name ?? 'The stage' : 'The stage';
+          const targetName = event.target >= 0 ? replay.units[event.target]?.name ?? 'A unit' : 'All units';
+          const damageStr = (event.damage ?? 0).toFixed(1);
           announcement = `${attackerName} hits ${targetName} for ${damageStr} damage.${event.hp === 0 ? ' Knocked out.' : ''}`;
           eventIndex++;
         }
@@ -213,7 +250,12 @@
         floats = floats.filter(item => elapsed - item.time < 6);
         lines = lines.filter(line => elapsed - line.time < 0.3);
 
-        if (elapsed >= replay.duration) {
+        const opponentIndices = replay.teamCounts
+          ? replay.units.map((_, idx) => idx).filter(idx => idx >= (replay.teamCounts![0] ?? 5))
+          : replay.units.map((_, idx) => idx).filter(idx => idx >= (replay.leftCount ?? 5));
+        const allEnemiesDefeated = opponentIndices.length > 0 && opponentIndices.every(idx => (hp[idx] ?? 0) <= 0);
+
+        if (elapsed >= replay.duration || (allEnemiesDefeated && eventIndex >= replay.events.length)) {
           finished = true;
           onfinish();
           return;
@@ -270,7 +312,7 @@
 
 <section class="battle" aria-label="Idle battle">
   {#if replay.stage}
-    <StageBanner stage={replay.stage} {elapsed} {finished} />
+    <StageBanner stage={replay.stage} {elapsed} {finished} hellAppeared={combatFrame?.hellAppeared} {replay} />
   {/if}
 
   <h2 class="arena">
@@ -280,7 +322,10 @@
   <div class="battle-heading">
     <h2>Autobattle · {elapsed.toFixed(1)}s</h2>
     {#if !finished}
-      <button onclick={togglePause}>{paused ? 'Resume' : 'Pause'}</button>
+      <div class="battle-controls">
+        <button type="button" onclick={togglePause}>{paused ? 'Resume' : 'Pause'}</button>
+        <button type="button" class="skip-button" onclick={skipBattle}>Skip</button>
+      </div>
     {/if}
   </div>
 
@@ -310,11 +355,133 @@
     </p>
   {/if}
 
-  <div class="board" bind:this={board}>
-    {#each [0, 1] as side}
-      <section>
-        <h3>{side === 0 ? 'Your team' : 'Opponent'}</h3>
-        {#each visibleBattleUnits(replay, combatFrame, side) as i (i)}
+{#snippet compactUnit(i: number, side: number)}
+  {@const unit = unitAtFrame(replay, combatFrame, i)}
+  <div
+    class="compact-unit"
+    class:boss={unit.boss}
+    class:phased={isUnitPhased(i)}
+    class:knocked-out={hp[i] <= 0}
+    class:frozen={isUnitFrozen(i)}
+    class:player-unit={side === 0}
+  >
+    <div class="compact-portrait" data-unit={i}>
+      <EquipmentIcons {unit} />
+      {#key hit[i]}
+        <div class="portrait-content" class:hit={hit[i] >= 0}>
+          <JourneyPortrait {unit} />
+        </div>
+      {/key}
+      {#each floats.filter(item => item.unit === i) as item (item.id)}
+        <b class="ability-float compact-float" class:executed={item.title === 'EXECUTED'}>
+          <span>{item.title}</span>
+        </b>
+      {/each}
+      <BattleEffectTags frame={combatFrame} index={i} {elapsed} {finished} />
+    </div>
+
+    <div class="compact-info">
+      <div class="compact-name-row">
+        <strong class="compact-name" title={unit.name}>{unit.name}</strong>
+        <span class="compact-hp-label">{hp[i] <= 0 ? 'KO' : `${Math.ceil(hp[i])}`}</span>
+      </div>
+      <progress
+        class="health compact-health"
+        aria-label={`${unit.name} HP`}
+        value={hp[i]}
+        max={maximumHP[i]}
+      ></progress>
+      {#if !implementationsFor(unit).some(ability => ability.cannotAttack)}
+        <progress
+          class="atb compact-atb"
+          aria-label={`${unit.name} ATB`}
+          max="1"
+          value={gauge(i)}
+        ></progress>
+      {/if}
+    </div>
+  </div>
+{/snippet}
+
+  <div class="board" class:battle-royale-board={isBattleRoyale} bind:this={board}>
+    {#if isBattleRoyale}
+      <div class="alcatraz-arena-grid">
+        <!-- Top: Team 1 (Opponent 1) -->
+        <section class="alcatraz-zone zone-top" aria-label="Team 1">
+          <header class="team-header t1">
+            <span class="team-badge">TEAM 1</span>
+            <h4>Opponent 1</h4>
+            <span class="team-survivors">{survivorsCount(1)} alive</span>
+          </header>
+          <div class="compact-units-row">
+            {#each visibleBattleUnits(replay, combatFrame, 1) as i (i)}
+              {@render compactUnit(i, 1)}
+            {/each}
+          </div>
+        </section>
+
+        <div class="alcatraz-arena-middle">
+          <!-- Left: Team 4 (Opponent 3) -->
+          <section class="alcatraz-zone zone-left" aria-label="Team 4">
+            <header class="team-header t4">
+              <span class="team-badge">TEAM 4</span>
+              <h4>Opponent 3</h4>
+              <span class="team-survivors">{survivorsCount(3)} alive</span>
+            </header>
+            <div class="compact-units-col">
+              {#each visibleBattleUnits(replay, combatFrame, 3) as i (i)}
+                {@render compactUnit(i, 3)}
+              {/each}
+            </div>
+          </section>
+
+          <!-- Center: Battle Arena -->
+          <div class="alcatraz-center-ring">
+            <span class="ring-title">ALCATRAZ TOWER</span>
+            <p class="ring-subtitle">4-WAY BATTLE ROYALE</p>
+            <div class="ring-announcement">{announcement}</div>
+            <div class="ring-scoreboard">
+              <span class="chip t1">T1: {survivorsCount(1)}/5</span>
+              <span class="chip t2">T2: {survivorsCount(2)}/5</span>
+              <span class="chip t3 player">YOU: {survivorsCount(0)}/{teamSize(0)}</span>
+              <span class="chip t4">T4: {survivorsCount(3)}/5</span>
+            </div>
+          </div>
+
+          <!-- Right: Team 2 (Opponent 2) -->
+          <section class="alcatraz-zone zone-right" aria-label="Team 2">
+            <header class="team-header t2">
+              <span class="team-badge">TEAM 2</span>
+              <h4>Opponent 2</h4>
+              <span class="team-survivors">{survivorsCount(2)} alive</span>
+            </header>
+            <div class="compact-units-col">
+              {#each visibleBattleUnits(replay, combatFrame, 2) as i (i)}
+                {@render compactUnit(i, 2)}
+              {/each}
+            </div>
+          </section>
+        </div>
+
+        <!-- Bottom: Team 3 (Your Team) -->
+        <section class="alcatraz-zone zone-bottom" aria-label="Team 3 (Your Team)">
+          <header class="team-header t3 player">
+            <span class="team-badge player">TEAM 3</span>
+            <h4>YOUR TEAM</h4>
+            <span class="team-survivors">{survivorsCount(0)} alive</span>
+          </header>
+          <div class="compact-units-row">
+            {#each visibleBattleUnits(replay, combatFrame, 0) as i (i)}
+              {@render compactUnit(i, 0)}
+            {/each}
+          </div>
+        </section>
+      </div>
+    {:else}
+      {#each [0, 1] as side}
+        <section>
+          <h3>{side === 0 ? 'Your team' : 'Opponent'}</h3>
+          {#each visibleBattleUnits(replay, combatFrame, side) as i (i)}
           {@const unit = unitAtFrame(replay, combatFrame, i)}
           <div
             class="unit"
@@ -323,6 +490,8 @@
             class:witch={unit.witch}
             class:knocked-out={hp[i] <= 0}
             class:frozen={isUnitFrozen(i)}
+            class:castle-room-0={replay.stage === 'infinite_castle' && (combatFrame?.castleRooms?.[i] ?? 0) === 0}
+            class:castle-room-1={replay.stage === 'infinite_castle' && (combatFrame?.castleRooms?.[i] ?? 0) === 1}
           >
             <div class="portrait" data-unit={i}>
               <EquipmentIcons {unit} />
@@ -358,6 +527,10 @@
             <div class="readout">
               {#if replay.stage === 'budokai'}
                 <span class="atb-label">Duel {(combatFrame?.positions?.[i] ?? 0) + 1}</span>
+              {:else if replay.stage === 'infinite_castle'}
+                <span class="atb-label castle-badge" class:room-0={(combatFrame?.castleRooms?.[i] ?? 0) === 0} class:room-1={(combatFrame?.castleRooms?.[i] ?? 0) === 1}>
+                  Room {(combatFrame?.castleRooms?.[i] ?? 0) + 1}
+                </span>
               {/if}
 
               <strong>
@@ -453,6 +626,7 @@
         {/each}
       </section>
     {/each}
+  {/if}
 
     <svg viewBox="0 0 1000 1000" preserveAspectRatio="none" aria-hidden="true">
       {#each lines as line (line.id)}
@@ -578,6 +752,19 @@
     justify-content: space-between;
     gap: 12px;
   }
+  .battle-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  .skip-button {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .skip-button:hover {
+    background: var(--accent);
+    color: #080808;
+  }
   .board {
     position: relative;
     display: grid;
@@ -593,6 +780,27 @@
     padding: 12px 0;
     min-height: 110px;
     border-bottom: 1px solid var(--line);
+    transition: outline 0.3s ease;
+  }
+  .unit.castle-room-0 {
+    outline: 2px solid #eab308;
+    outline-offset: -2px;
+    padding-left: 8px;
+    padding-right: 8px;
+    background: rgba(234, 179, 8, 0.04);
+  }
+  .unit.castle-room-1 {
+    outline: 2px solid #38bdf8;
+    outline-offset: -2px;
+    padding-left: 8px;
+    padding-right: 8px;
+    background: rgba(56, 189, 248, 0.04);
+  }
+  .castle-badge.room-0 {
+    color: #eab308;
+  }
+  .castle-badge.room-1 {
+    color: #38bdf8;
   }
   .portrait {
     width: 76px;
@@ -716,4 +924,257 @@
       width: 64px;
     }
   }
+
+  /* 4-Team Battle Royale Styling */
+  .battle-royale-board {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    position: relative;
+    width: 100%;
+    background: #080808;
+    border: 1px solid #222;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  .alcatraz-arena-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    position: relative;
+    z-index: 2;
+  }
+  .alcatraz-arena-middle {
+    display: grid;
+    grid-template-columns: 140px 1fr 140px;
+    gap: 8px;
+    align-items: center;
+    min-height: 240px;
+  }
+  .alcatraz-zone {
+    background: #101010;
+    border: 1px solid #252525;
+    padding: 6px;
+    box-sizing: border-box;
+  }
+  .alcatraz-zone.zone-bottom {
+    border-color: #57305e;
+    background: #120e14;
+  }
+  .team-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-family: monospace;
+  }
+  .team-header h4 {
+    margin: 0;
+    font-size: 11px;
+    color: #e8e8e3;
+    font-weight: bold;
+  }
+  .team-badge {
+    padding: 2px 5px;
+    font-size: 10px;
+    font-weight: bold;
+    border: 1px solid #444;
+    color: #fff;
+  }
+  .team-header.t1 .team-badge {
+    background: #0369a1;
+    border-color: #38bdf8;
+    color: #e0f2fe;
+  }
+  .team-header.t2 .team-badge {
+    background: #6b21a8;
+    border-color: #c084fc;
+    color: #f3e8ff;
+  }
+  .team-header.t3.player .team-badge {
+    background: var(--accent);
+    border-color: #ff9ed2;
+    color: #080808;
+  }
+  .team-header.t4 .team-badge {
+    background: #854d0e;
+    border-color: #facc15;
+    color: #fef08a;
+  }
+  .team-survivors {
+    margin-left: auto;
+    color: #aaa;
+    font-size: 10px;
+  }
+  .compact-units-row {
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  .compact-units-col {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .compact-unit {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    background: #141414;
+    border: 1px solid #262626;
+    padding: 3px 5px;
+    box-sizing: border-box;
+    min-width: 115px;
+    max-width: 145px;
+    flex: 1 1 115px;
+  }
+  .compact-unit.player-unit {
+    border-color: #57305e;
+  }
+  .compact-unit.knocked-out {
+    opacity: 0.35;
+    filter: grayscale(1);
+    background: #0c0c0c;
+  }
+  .compact-portrait {
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    position: relative;
+    border: 1px solid #444;
+    overflow: hidden;
+    background: #000;
+  }
+  .compact-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex: 1;
+    min-width: 0;
+  }
+  .compact-name-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 2px;
+  }
+  .compact-name {
+    font-size: 10px;
+    color: #e8e8e3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 60px;
+  }
+  .compact-hp-label {
+    font-size: 9px;
+    font-family: monospace;
+    color: #888;
+  }
+  .compact-unit.knocked-out .compact-hp-label {
+    color: #ef4444;
+    font-weight: bold;
+  }
+  .compact-health {
+    height: 4px;
+    width: 100%;
+  }
+  .compact-atb {
+    height: 3px;
+    width: 100%;
+  }
+  .compact-float {
+    font-size: 9px;
+    padding: 1px 3px;
+    bottom: 80%;
+  }
+  .alcatraz-center-ring {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 12px 8px;
+    border: 1px dashed #333;
+    background: #0a0a0a;
+    min-height: 160px;
+    gap: 6px;
+  }
+  .ring-title {
+    font-family: 'Raglan Punch', Impact, sans-serif;
+    font-size: 18px;
+    color: var(--accent);
+    letter-spacing: 1px;
+  }
+  .ring-subtitle {
+    font-size: 10px;
+    font-family: monospace;
+    color: #888;
+    margin: 0;
+    text-transform: uppercase;
+  }
+  .ring-announcement {
+    font-size: 11px;
+    color: #fff;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 8px;
+    background: #141414;
+    border: 1px solid #222;
+    max-width: 90%;
+  }
+  .ring-scoreboard {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .ring-scoreboard .chip {
+    font-size: 10px;
+    font-family: monospace;
+    padding: 2px 5px;
+    background: #161616;
+    border: 1px solid #333;
+  }
+  .ring-scoreboard .chip.t1 { border-color: #38bdf8; color: #38bdf8; }
+  .ring-scoreboard .chip.t2 { border-color: #c084fc; color: #c084fc; }
+  .ring-scoreboard .chip.t3.player {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: bold;
+    background: #251020;
+  }
+  .ring-scoreboard .chip.t4 { border-color: #facc15; color: #facc15; }
+
+  @media (max-width: 640px) {
+    .alcatraz-arena-middle {
+      grid-template-columns: 110px 1fr 110px;
+      gap: 5px;
+    }
+    .compact-unit {
+      min-width: 95px;
+      padding: 2px;
+    }
+    .compact-portrait {
+      width: 26px;
+      height: 26px;
+      min-width: 26px;
+    }
+    .compact-name {
+      max-width: 45px;
+      font-size: 9px;
+    }
+    .ring-title {
+      font-size: 15px;
+    }
+  }
 </style>
+

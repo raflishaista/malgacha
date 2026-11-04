@@ -24,10 +24,10 @@ export const BOSS_ABILITY_RULES = {
   lureSeconds: 10,
   lureFraction: 0.25,
   bombSeconds: 5,
-  bombMultiplier: 2.5,
-  fiendBoost: 0.5,
+  bombMultiplier: 1.5,
+  fiendBoost: 0.3,
   formeSeconds: 3,
-  angelSeconds: 20
+  angelSeconds: 25
 } as const;
 
 export const DEOXYS_FORMES = {

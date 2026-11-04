@@ -1,6 +1,6 @@
 import { equipmentBonuses, dodgeChance, defenseIgnore, equipmentAtbRate } from './equipment';
 import { BattleItems } from './item-effects';
-import { firstStageTick, applyStageTick } from './stage-effects';
+import { firstStageTick, applyStageTick, shuffleCastleRooms } from './stage-effects';
 import type { StageId } from '../stages';
 import type { JourneyCharacter } from '../types';
 import { bossFor, BOSS_ABILITY_RULES, DEOXYS_FORMES, LURE } from '../bosses';
@@ -19,15 +19,38 @@ import {specialUnit,type SummonKind} from './abilities/special-units';
 import {abilityFor} from '../journeys';
 
 /** Scheduler owns timing, targeting and stage victory rules. Abilities use typed actions. */
-export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter[], random = Math.random, stage?: StageId): BattleReplay {
+export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter[], random = Math.random, stage?: StageId, extraTeams?: JourneyCharacter[][]): BattleReplay {
   if (right.some(c => c.boss)) stage = undefined;
   const originalSlots = [...left.flatMap((c, i) => c.empty ? [] : [i]), ...right.flatMap((c, i) => c.empty ? [] : [i])];
   left = left.filter(c => !c.empty);
   right = right.filter(c => !c.empty);
-  if (left.length < 1 || left.length > 7 || (right.length !== 5 && !(right.length === 1 && right[0].boss))) throw new Error('Autobattles require 1–7 player units and five opponents or one boss.');
+  const cleanExtra = extraTeams ? extraTeams.map(t => t.filter(c => !c.empty)) : [];
+  const allTeams = [left, right, ...cleanExtra];
+  const isMultiTeam = allTeams.length > 2;
+  if (
+    left.length < 1 ||
+    left.length > 7 ||
+    (!isMultiTeam && (right.length !== 5 && !(right.length === 1 && right[0].boss))) ||
+    (isMultiTeam && allTeams.slice(1).some(t => t.length !== 5))
+  ) {
+    throw new Error('Autobattles require 1–7 player units and five opponents or one boss.');
+  }
+  if (stage === 'axis') {
+    left.push(
+      specialUnit('amuro', 'axis-amuro', random),
+      specialUnit('bright', 'axis-bright', random),
+      specialUnit('hathaway', 'axis-hathaway', random)
+    );
+    right.push(
+      specialUnit('char', 'axis-char', random),
+      specialUnit('quess', 'axis-quess', random),
+      specialUnit('gyunei', 'axis-gyunei', random)
+    );
+  }
   const leftCount = left.length;
-  let gear = [...equipmentBonuses(left), ...equipmentBonuses(right)];
-  const replayUnits = [...left, ...right];
+  const teamCounts = allTeams.map(t => t.length);
+  let gear = allTeams.flatMap(t => equipmentBonuses(t));
+  const replayUnits = allTeams.flat();
   const units = structuredClone(replayUnits);
   let count = units.length;
   const unitOverrides: Record<number, Partial<JourneyCharacter>> = {};
@@ -37,13 +60,16 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       unitOverrides[index] = { bossForm: 'normal', image: DEOXYS_FORMES.normal.image, battleModifiers: {} };
     }
   });
-  const sides: number[] = units.map((_, i) => i < leftCount ? 0 : 1), positions = [...originalSlots];
+  const sides: number[] = allTeams.flatMap((t, s) => t.map(() => s));
+  const positions = isMultiTeam ? allTeams.flatMap(t => t.map((_, i) => i)) : stage === 'axis' ? [...left.map((_, i) => i), ...right.map((_, i) => i)] : [...originalSlots];
   const participating = units.map((_, i) => stage !== 'budokai' || positions[i] < 5);
   const retired = new Set<number>(), executed = new Set<number>(), duelWins = [0, 0];
   const settledDuels = new Set<number>();
   let stageWinner: 'left' | 'right' | 'draw' | undefined;
   let executionUsed = false;
   const burnSide = stage === 'punk' ? Math.floor(random() * 2) : -1;
+  const castleRooms = units.map(() => 0);
+  const hellState = { appeared: false };
   const statuses = new BattleStatuses(count);
   const effects = new BattleEffects(count);
   const counters:Record<number,{ability:number;value:number;digits?:number[]}>={};
@@ -54,6 +80,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   const attackOverrides=new Map<number,number>();
   const pausedAtb=new Map<number,number>();
   let abilityDepth=0;
+  let currentAbilityId:number|undefined;
   let activationTarget:number|undefined;
   const casualties=[0,0,0];
   let blastTie=false;
@@ -92,7 +119,11 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   const expirations = units.flatMap(unit => implementationsFor(unit).flatMap(ability => ability.expiresAt === undefined ? [] : [ability.expiresAt]));
   let nextExpiration = Math.min(Infinity, ...expirations);
   const sameSide = (a: number, b: number) => sides[a] === sides[b];
-  const sameDuel = (a: number, b: number) => stage !== 'budokai' || positions[a] === positions[b];
+  const sameDuel = (a: number, b: number) => {
+    if (stage === 'budokai') return positions[a] === positions[b];
+    if (stage === 'infinite_castle') return castleRooms[a] === castleRooms[b];
+    return true;
+  };
   const available = (i: number) => participating[i] && !retired.has(i) && hp[i] > 0;
   const cannotAttack = (i: number) => implementationsFor(units[i]).some(ability => ability.cannotAttack) || effects.has(i,'STUN',time) || implementationsFor(units[i]).some(a=>a.id===140046)&&(state(i,140046).hits??0)>=5;
   units.forEach((_, i) => { if (cannotAttack(i)) next[i] = Infinity; });
@@ -116,6 +147,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       if(effects.has(i,'WEAKENED',time))for(const key of STAT_KEYS)value[key]=Math.max(1,value[key]-20);
       if(!units[i].negated&&effects.has(i,'FESTIVE MIRACLE',time))value.speed*=4;
       if(!units[i].negated&&effects.has(i,'GODSPEED',time))value.speed*=2;
+      if(!units[i].negated&&effects.has(i,'POTION BOOST',time))value.speed*=1.15;
       if(implementationsFor(units[i]).some(a=>a.speedFloor))value.speed=Math.max(value.speed,units[i].baseStats.speed);
       if(!units[i].negated&&implementationsFor(units[i]).some(a=>a.id===1336))value.speed=units[i].baseStats.speed*3;
       if(attackOverrides.has(i))value.attack=attackOverrides.get(i)!;
@@ -143,6 +175,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       return [{ owner, title, progress: Math.max(0, Math.min(1, 1 - remaining / ability.cooldown)), remaining, cooldown: ability.cooldown, absolute: !!ability.absoluteTimer }];
     }));
     frames.push({ ...(units.some((_,i)=>cannotAttack(i))?{inactive:units.map((_,i)=>cannotAttack(i))}:{}), ...(effects.entries.some(map=>map.size)?{effects:effects.frame(time)}:{}), ...(Object.keys(counters).length?{counters:structuredClone(counters)}:{}), ...(Object.keys(links).length?{links:{...links}}:{}), ...(Object.keys(unitOverrides).length ? { unitOverrides: structuredClone(unitOverrides) } : {}), ...(bossGauges.length ? { bossGauges } : {}), witches: units.map(c => !!c.witch), time, hp: [...hp], maxHP: [...maxHP], speed: stats.map(s => s.speed), aura: [...aura], sides: [...sides], positions: [...positions], participating: [...participating], intervals: [...intervals], chillUntil: [...chillUntil], duelWins: [...duelWins],
+      ...(stage === 'infinite_castle' ? { castleRooms: [...castleRooms] } : {}), ...(stage === 'hell' ? { hellAppeared: hellState.appeared } : {}),
       atb: next.map((n, i) => hp[i] > 0 ? effects.has(i,'STUN',time)?1-(pausedAtb.get(i)??1):Math.max(0, Math.min(1, 1 - activeSeconds(time, n, i, stops) / intervals[i])) : 0),
       rumbling: units.map((_, i) => timedGauge(i, 'rumbling')),
       shrine: units.map((_, i) => timedGauge(i, 'shrine')), shrineUsed: units.map((_, i) => shrineUsed(i)),
@@ -159,13 +192,15 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     syncTimers();
     emit(actor, target, 'revive', title);
   }
-  function enemies(owner:number){return units.flatMap((unit,i)=>i!==owner&&available(i)&&sameDuel(owner,i)&&(unit.witch||units[owner].witch||!sameSide(i,owner))?[i]:[]);}
+  function enemies(owner:number){return units.flatMap((unit,i)=>i!==owner&&available(i)&&sameDuel(owner,i)&&(stage === 'alcatraz' ? (isMultiTeam ? !sameSide(i, owner) : true) : unit.witch||units[owner].witch||!sameSide(i,owner))?[i]:[]);}
   function allies(owner:number,dead=false){return units.flatMap((_,i)=>i!==owner&&participating[i]&&!retired.has(i)&&sameSide(i,owner)&&sameDuel(i,owner)&&(dead?hp[i]<=0:hp[i]>0)?[i]:[]);}
   function titleOf(id:number){return abilityFor(id)?.title??bossFor({id})?.title??'Ability';}
   function affected(owner:number,id:number){const definition=ABILITIES.get(id);if(definition?.activationTargets)return definition.activationTargets(context,owner);if(definition?.selectTarget){const target=definition.selectTarget(context,owner);return target===undefined?[]:[target];}const mode=definition?.targets??'self';return mode==='all'?units.flatMap((_,i)=>available(i)&&sameDuel(i,owner)?[i]:[]):mode==='enemies'?enemies(owner):mode==='enemy'?(enemies(owner).length?[enemies(owner)[Math.floor(random()*enemies(owner).length)]]:[]):mode==='allies'?[owner,...allies(owner)]:[owner];}
   function trigger<T>(owner:number,id:number,targets:number[],action:(actor:number)=>T):{actor:number;value:T}|undefined {
     if(abilityDepth>=8||units[owner].negated)return;
     abilityDepth++;
+    const prevAbilityId = currentAbilityId;
+    currentAbilityId = id;
     try{
       let actor=owner;
       const chained=Object.entries(links).find(([source,target])=>target===owner&&available(Number(source))&&!units[Number(source)].negated);
@@ -179,8 +214,23 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       if(actor!==owner&&(id===1374||id===1375))state(actor,id).card=state(owner,id).card;
       const previous=activationTarget;activationTarget=actor===owner?targets.find(i=>!sameSide(i,owner)):owner;
       const value=action(actor);activationTarget=previous;
-      refreshStats();return{actor,value};
-    }finally{abilityDepth--;}
+      refreshStats();
+      for(let i=0;i<count;i++)if(available(i)&&!sameSide(i,actor)&&sameDuel(i,actor)){
+        for(const ability of implementationsFor(units[i]))if(ability.id===240069){
+          const s=state(i,240069);
+          if(s.pendingAdaptation?.has(id)){
+            s.pendingAdaptation.delete(id);
+            s.adapted=s.adapted??new Set<number>();
+            s.adapted.add(id);
+            emit(i,i,'buff','Adapted ('+titleOf(id)+')');
+          }
+        }
+      }
+      return{actor,value};
+    }finally{
+      currentAbilityId = prevAbilityId;
+      abilityDepth--;
+    }
   }
   function append(unit:JourneyCharacter,owner:number){
     const i=count++;units.push(unit);replayUnits.push(structuredClone(unit));hp.push(unit.baseStats.hp);maxHP.push(unit.baseStats.hp);intervals.push(attackInterval(unit.baseStats.speed));stats.push({...unit.baseStats});gear.push({hp:0,attack:0,defense:0,speed:0});aura.push(false);bonus.push(0);next.push(time+intervals[i]);nextAbility.push(Infinity);timers.push({});abilityStates.push(new Map());statuses.addUnit();effects.addUnit();sides.push(sides[owner]);positions.push(Math.max(4,...positions.filter((_,j)=>sides[j]===sides[owner]))+1);participating.push(stage!=='budokai'&&stage!=='valley');if(!participating[i]){hp[i]=0;next[i]=Infinity;}unitOverrides[i]=structuredClone(unit);return i;
@@ -229,6 +279,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     if(effects.has(target,'INVINCIBLE',time)||effects.has(target,'STRUGGLER',time)&&hp[target]<=1)return;
     if(effects.has(target,'KURIBOH',time)){effects.entries[target].delete('KURIBOH');emit(target,target,'buff','Kuriboh');return;}
     if(reflect&&!units[target].negated&&effects.has(target,'REFLECT',time)&&actor!==target){deal(target,actor,damage,'REFLECT',false);return;}
+    if(currentAbilityId!==undefined&&implementationsFor(units[target]).some(a=>a.id===240069&&state(target,240069).adapted?.has(currentAbilityId!))){emit(target,target,'dodge','Adapted');return;}
     const oldDead=hp.flatMap((v,i)=>v<=0?[i]:[]);
     const previousHP=hp[target];hp[target]=Math.max(0,hp[target]-damage);
     if(hp[target]===0&&fatal(target,actor,previousHP))hp[target]=Math.max(1,hp[target]);
@@ -240,7 +291,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     activate(owner,id,targets,action){return !!trigger(owner,id,targets,action);},
     target(owner){const values=enemies(owner);return activationTarget!==undefined&&values.includes(activationTarget)?activationTarget:values[Math.floor(random()*values.length)];},
     addStat(owner,key,amount,title){units[owner].battleModifiers={...units[owner].battleModifiers,[key]:(units[owner].battleModifiers?.[key]??0)+amount};unitOverrides[owner]={...unitOverrides[owner],battleModifiers:units[owner].battleModifiers};refreshStats();emit(owner,owner,'buff',title);},
-    effect(owner,target,id,duration,title){if(implementationsFor(units[target]).some(a=>a.id===175543||a.id===164482))return;effects.apply(target,id,time,duration,owner);refreshStats();emit(owner,target,'buff',title);},
+    effect(owner,target,id,duration,title){if(implementationsFor(units[target]).some(a=>a.id===175543||a.id===164482))return;if(currentAbilityId!==undefined&&implementationsFor(units[target]).some(a=>a.id===240069&&state(target,240069).adapted?.has(currentAbilityId!)))return;effects.apply(target,id,time,duration,owner);refreshStats();emit(owner,target,'buff',title);},
     damage(owner,target,amount,title,percent=false){if(title==='Self-Destruct')blastTie=true;deal(owner,target,percent?maxHP[target]*amount:amount,title);},
     setCounter(owner,ability,value,digits){counters[owner]={ability,value,digits};},
     effectiveAttack(owner,value){attackOverrides.set(owner,value);refreshStats();},
@@ -250,7 +301,10 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       const key=-90000-(kind==='clone'?1:kind==='pikachu'?2:kind==='mahad'?3:kind==='slifer'?4:5);if(state(owner,key).used)return;state(owner,key).used=true;
       const unit=kind==='clone'?{...structuredClone(units[owner]),clone:true,baseStats:{...stats[owner]},name:units[owner].name+' (Clone)',equipment:[],extraAbilities:abilityIds(units[owner]).filter(id=>id!==17),removedAbilities:[17],permanentBoosts:undefined,battleModifiers:undefined,instanceId:units[owner].instanceId+'-clone'}:specialUnit(kind,units[owner].instanceId+'-'+kind,random);
       unit.summonOwner=owner;const target=append(unit,owner);
-      if(kind==='clone')for(const ability of implementationsFor(unit))if(ability.cooldown!==undefined)timers[target][ability.id]=time+ability.cooldown;
+      for(const ability of implementationsFor(unit)){
+        if(ability.cooldown!==undefined)timers[target][ability.id]=time+ability.cooldown;
+        ability.onStart?.(context,target);
+      }
       syncTimers();refreshGear();refreshStats();emit(owner,target,'summon',kind==='clone'?'Shadow Clones':kind==='pikachu'?'I Choose You':kind==='mahad'?'Dark Magic Curtain':kind==='mahoraga'?'With this treasure I summon...':'Slifer the Sky Dragon');
     },
     replaceCrew(owner){const crew=['faye','jet','ein','edward'] as const;const members=allies(owner).filter(i=>positions[i]<5).slice(0,4);members.forEach((i,n)=>{units[i]={...specialUnit(crew[n],units[i].instanceId,random)};timers[i]={};abilityStates[i].clear();unitOverrides[i]=structuredClone(units[i]);hp[i]=units[i].baseStats.hp;maxHP[i]=hp[i];next[i]=time+attackInterval(units[i].baseStats.speed);});refreshGear();refreshStats();syncTimers();emit(owner,owner,'transform','Bebop Crew');},
@@ -271,7 +325,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     get stats() { return stats; },
     get time() { return time; },
     addAttack(owner, amount) { bonus[owner] += amount; },
-    inflictBurn(owner, target) { if(implementationsFor(units[target]).some(a=>a.id===175543||a.id===164482))return; statuses.burn(target, time, owner); },
+    inflictBurn(owner, target) { if(implementationsFor(units[target]).some(a=>a.id===175543||a.id===164482))return; if(currentAbilityId!==undefined&&implementationsFor(units[target]).some(a=>a.id===240069&&state(target,240069).adapted?.has(currentAbilityId!)))return; statuses.burn(target, time, owner); },
     scheduleAbility(owner, ability, delay) { timers[owner][ability] = time + delay; syncTimers(); },
     summonLure(owner) {
       let target = units.findIndex(unit => unit.summonOwner === owner);
@@ -331,8 +385,10 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       stageWinner = sides[owner] === 0 ? 'left' : 'right';
     },
     stopTime(owner, seconds) {
-      stops.push({ start: time, end: time + seconds, owner, affected: units.flatMap((_, i) => i !== owner && sameDuel(i, owner) ? [i] : []) });
-      for (let i = 0; i < count; i++) if (i !== owner && sameDuel(i, owner)) {
+      const isImmune = (i: number) => implementationsFor(units[i]).some(a => a.id === 240069 && state(i, 240069).adapted?.has(currentAbilityId ?? 4004));
+      const affected = units.flatMap((_, i) => i !== owner && sameDuel(i, owner) && !isImmune(i) ? [i] : []);
+      stops.push({ start: time, end: time + seconds, owner, affected });
+      for (const i of affected) {
         next[i] += seconds;
         for (const id of timedIds) if (timers[i][id] !== undefined && !ABILITIES.get(id)?.absoluteTimer) timers[i][id] += seconds;
         statuses.freeze(i, seconds);
@@ -418,10 +474,39 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   }
   const itemContext = { hp, get maxHP() { return maxHP; }, get time() { return time; }, available, sameSide, sameDuel, emit, deaths, refreshStats };
   itemEffects.onStart(itemContext);
+  if (stage === 'infinite_castle') {
+    shuffleCastleRooms(units, sides, available, random, castleRooms);
+    emit(-1, -1, 'environment', 'A biwa makes a noise! The rooms change.');
+  } else if (stage === 'morioh') {
+    const leftCandidates = units.flatMap((_, i) => sides[i] === 0 && available(i) ? [i] : []);
+    const rightCandidates = units.flatMap((_, i) => sides[i] === 1 && available(i) ? [i] : []);
+    if (leftCandidates.length && rightCandidates.length) {
+      const leftVictim = leftCandidates[Math.floor(random() * leftCandidates.length)];
+      const rightVictim = rightCandidates[Math.floor(random() * rightCandidates.length)];
+      const message = `${units[leftVictim].name} and ${units[rightVictim].name} disappear in a quiet explosion…`;
+      const alreadyDead = hp.flatMap((value, i) => value <= 0 ? [i] : []);
+      const dmgL = hp[leftVictim], dmgR = hp[rightVictim];
+      hp[leftVictim] = 0; hp[rightVictim] = 0;
+      emit(-1, leftVictim, 'execute', message, dmgL);
+      emit(-1, rightVictim, 'execute', message, dmgR);
+      deaths([leftVictim, rightVictim], alreadyDead);
+    }
+  } else if (stage === 'inaba') {
+    emit(-1, -1, 'environment', 'A thick fog obscures the truth of your opponent’s identity…');
+  } else if (stage === 'alcatraz') {
+    emit(-1, -1, 'environment', 'The teams are lifted to the top! It’s a Battle Royale duel!');
+  } else if (stage === 'axis') {
+    emit(-1, -1, 'environment', 'You and your opponent are reinforced by armies! Additional units join the battle.');
+  }
   settleDuels();
   snapshot();
   const hasSide = (side: number) => units.some((_, i) => sides[i] === side && available(i));
-  while (!stageWinner && ((hasSide(0) && hasSide(1)) || (pendingRevival.size > 0 && (hasSide(0) || hasSide(1))) || (hasSide(2) && (hasSide(0) || hasSide(1))))) {
+  const activeSides = () => {
+    let livingTeams = 0;
+    for (let s = 0; s < allTeams.length; s++) if (hasSide(s)) livingTeams++;
+    return livingTeams;
+  };
+  while (!stageWinner && (activeSides() >= 2 || (pendingRevival.size > 0 && activeSides() >= 1))) {
     for(let i=0;i<count;i++)if(available(i))for(const ability of implementationsFor(units[i]))ability.onUpdate?.(context,i);
     const burnTimes = units.map((_, i) => available(i) ? statuses.nextBurn(i) : Infinity);
     const negationExpiry = Math.min(Infinity, ...statuses.negatedUntil.filter((at, i) => !permanentlyNegated.has(i) && at > time));
@@ -456,7 +541,8 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     }
     if (time === stageAt) {
       const effect = applyStageTick(stage, {
-        time, units, hp, maxHP, sides, positions, burnSide, statuses, available, random, refreshStats,
+        time, units, hp, maxHP, sides, positions, burnSide, statuses, effects,
+        castleRooms, hellState, available, random, refreshStats, emit,
         refreshTeamModifiers() { refreshGear(); refreshStats(); },
         damageEveryone(fraction) {
           const alreadyDead = hp.flatMap((value, i) => value <= 0 ? [i] : []), dead: number[] = [];
@@ -469,6 +555,23 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
             }
           });
           deaths(dead, alreadyDead);
+        },
+        dealDamage(target, amount, abilityName) {
+          if (!available(target)) return;
+          const alreadyDead = hp.flatMap((value, i) => value <= 0 ? [i] : []);
+          const previousHP = hp[target];
+          hp[target] = Math.max(0, hp[target] - amount);
+          if (hp[target] === 0 && fatal(target, -1, previousHP)) hp[target] = Math.max(1, hp[target]);
+          emit(-1, target, 'environment', abilityName, amount);
+          if (hp[target] === 0) deaths([target], alreadyDead);
+        },
+        killUnit(target, abilityName) {
+          if (!available(target)) return;
+          const alreadyDead = hp.flatMap((value, i) => value <= 0 ? [i] : []);
+          const damage = hp[target];
+          hp[target] = 0;
+          emit(-1, target, 'execute', abilityName, damage);
+          deaths([target], alreadyDead);
         }
       });
       stageAt = effect.nextAt;
@@ -507,8 +610,9 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       syncTimers(); snapshot(); continue;
     }
     const protectedByLure = (i: number) => implementationsFor(units[i]).some(ability => ability.protectedBySummon) && units.some((unit, j) => unit.summonOwner === i && available(j));
-    const attacksAllies=effects.has(attacker,'BERSERK',time)||(effects.has(attacker,'RAMPAGE',time)&&random()<.5);
-    let living = hp.flatMap((n, i) => i !== attacker && available(i) && !protectedByLure(i) && (attacksAllies?sameSide(i,attacker):units[attacker].witch || units[i].witch || !sameSide(i, attacker)) && sameDuel(i, attacker) ? [i] : []);
+    const isAlcatraz = stage === 'alcatraz';
+    const attacksAllies = effects.has(attacker,'BERSERK',time)||(effects.has(attacker,'RAMPAGE',time)&&random()<.5);
+    let living = hp.flatMap((n, i) => i !== attacker && available(i) && !protectedByLure(i) && (attacksAllies ? sameSide(i, attacker) : isAlcatraz ? (isMultiTeam ? !sameSide(i, attacker) : true) : units[attacker].witch || units[i].witch || !sameSide(i, attacker)) && sameDuel(i, attacker) ? [i] : []);
     const targetable=living.filter(i=>!implementationsFor(units[i]).some(a=>a.untargetable));if(targetable.length)living=targetable;
     const taunts = living.filter(i => !units[i].negated && keywordsFor(units[i]).includes('TAUNT'));
     const candidates = taunts.length ? taunts : living;
@@ -516,7 +620,10 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     const single=isAbility&&activation?.attack?.single?(attacker!==scheduledAttacker?scheduledAttacker:plannedTargets.find(i=>candidates.includes(i)))??candidates[Math.floor(random()*candidates.length)]:candidates[Math.floor(random()*candidates.length)];
     let targets = isAbility && !activation?.attack?.single || units[attacker].witch ? living : candidates.length ? [single,...candidates.filter(i=>i!==single).slice(0,targetCount-1)] : [];
     if (!targets.length) {
-      if (pendingRevival.size) { next[attacker] = time + intervals[attacker]; if (isAbility) { timers[attacker][activeId] = time + timedCooldown(activeId); syncTimers(); } }
+      if (pendingRevival.size || stage === 'infinite_castle') {
+        next[attacker] = time + (stage === 'infinite_castle' ? 1 : intervals[attacker]);
+        if (isAbility) { timers[attacker][activeId] = time + timedCooldown(activeId); syncTimers(); }
+      }
       else { retired.add(attacker); next[attacker] = Infinity; nextAbility[attacker] = Infinity; }
       continue;
     }
@@ -524,10 +631,15 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     if(attackEffect?.reflectedBy!==undefined){attacker=attackEffect.reflectedBy;targets=[scheduledAttacker];}
     const alreadyDead = hp.flatMap((n, i) => n <= 0 ? [i] : []), dead: number[] = [];
     const repeats=isAbility?1:Math.max(1,...implementationsFor(units[attacker]).map(a=>a.attackHits??1));
+    if (isAbility) currentAbilityId = activeId;
     for(let repeat=0;repeat<repeats;repeat++)targets.forEach((target, index) => {
       if(hp[target]<=0)return;
       if(effects.has(target,'INVINCIBLE',time)||effects.has(target,'STRUGGLER',time)&&hp[target]<=1)return;
       if(effects.has(target,'KURIBOH',time)){effects.entries[target].delete('KURIBOH');emit(target,target,'buff','Kuriboh');return;}
+      if (isAbility && implementationsFor(units[target]).some(a => a.id === 240069 && state(target, 240069).adapted?.has(activeId))) {
+        emit(target, target, 'dodge', 'Adapted');
+        return;
+      }
       const dodge=1-(1-dodgeChance(units[target]))*implementationsFor(units[target]).reduce((chance,a)=>chance*(1-(a.dodgeChance??0)),1);
       if (dodge > 0 && random() < dodge) { emit(target, target, 'dodge', 'DODGE');for(const ability of implementationsFor(units[target]))ability.onDodge?.(context,target); return; }
       const ignore = 1 - (1 - defenseIgnore(units[attacker])) * (1 - (activation?.attack?.defenseIgnore ?? attackEffect?.defenseIgnore ?? 0));
@@ -540,14 +652,55 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
       if (!isAbility) for (const ability of implementationsFor(units[attacker])) ability.onHit?.(context,attacker,target);
       if (itemEffects.onHit(itemContext, attacker, target, actual) && !dead.includes(target)) {dead.push(target);killCredit(attacker,target);}
     });
+    if (isAbility) currentAbilityId = undefined;
     if (isAbility) { timers[scheduledAttacker][activeId] = frozenUntil(scheduledAttacker) + (activation?.nextDelay ?? Infinity); syncTimers(); } else {next[scheduledAttacker] = time + intervals[scheduledAttacker];if(implementationsFor(units[attacker]).some(a=>a.id===140046)&&(state(attacker,140046).hits??0)>=5){timers[attacker][140046]=time+R.regRecharge;syncTimers();next[attacker]=Infinity;}}
-    execution(attacker, dead); deaths(dead, alreadyDead); settleDuels(); snapshot();
+    execution(attacker, dead); deaths(dead, alreadyDead); settleDuels();
+    if (isAbility && activeId) {
+      for (let i = 0; i < count; i++) {
+        if (available(i) && !sameSide(i, scheduledAttacker) && sameDuel(i, scheduledAttacker)) {
+          for (const ability of implementationsFor(units[i])) {
+            if (ability.id === 240069) {
+              const s = state(i, 240069);
+              if (s.pendingAdaptation?.has(activeId)) {
+                s.pendingAdaptation.delete(activeId);
+                s.adapted = s.adapted ?? new Set<number>();
+                s.adapted.add(activeId);
+                emit(i, i, 'buff', 'Adapted (' + titleOf(activeId) + ')');
+              }
+            }
+          }
+        }
+      }
+    }
+    snapshot();
   }
-  const survivors = [0, 1].map(side => hp.filter((n, i) => n > 0 && sides[i] === side && participating[i]).length);
-  const winner = stageWinner ?? (survivors[0] === 0 && survivors[1] === 0 ? blastTie?'left':'draw' : survivors[0] === 0 ? 'right' : survivors[1] === 0 ? 'left' : 'draw');
-  const finalWinner=hasSide(2)?survivors[0]===0?'right':winner==='left'?'draw':winner:winner;
+  const survivors = Array.from({ length: allTeams.length }, (_, side) =>
+    hp.filter((n, i) => n > 0 && sides[i] === side && participating[i]).length
+  );
+  let finalWinner: 'left' | 'right' | 'draw';
+  if (stageWinner) {
+    finalWinner = stageWinner;
+  } else if (isMultiTeam) {
+    if (survivors[0] > 0 && survivors.slice(1).every(s => s === 0)) {
+      finalWinner = 'left';
+    } else if (survivors[0] === 0) {
+      finalWinner = 'right';
+    } else {
+      const teamHPs = Array.from({ length: allTeams.length }, (_, side) => {
+        const teamUnits = units.flatMap((_, i) => sides[i] === side && participating[i] ? [i] : []);
+        if (!teamUnits.length) return 0;
+        const total = teamUnits.reduce((acc, i) => acc + hp[i], 0);
+        const max = teamUnits.reduce((acc, i) => acc + maxHP[i], 0);
+        return max > 0 ? total / max : 0;
+      });
+      const best = Math.max(...teamHPs);
+      finalWinner = teamHPs[0] === best && teamHPs.filter(h => h === best).length === 1 ? 'left' : 'right';
+    }
+  } else {
+    finalWinner = survivors[0] === 0 && survivors[1] === 0 ? (blastTie ? 'left' : 'draw') : survivors[0] === 0 ? 'right' : survivors[1] === 0 ? 'left' : 'draw';
+  }
   for(let i=0;i<count;i++)if(abilityIds(units[i]).includes(2867)&&casualties[sides[i]]===0&&(units[i].gantzPoints??0)>=100){units[i].gantzPoints!-=100;record(i).gantzPoints=units[i].gantzPoints;addStats(i,30,'GANTZ upgrade',true);}
   const losingSide=finalWinner==='left'?1:finalWinner==='right'?0:-1;
   const reset=units.some((unit,i)=>sides[i]===losingSide&&implementationsFor(unit).some(a=>a.resetsBattle));
-  return { ...(Object.keys(persistence).length?{updates:persistence}:{}),...(reset?{resetSide:losingSide}:{}),stage, units: replayUnits, leftCount, events, stops, frames, duration: time, winner: finalWinner, left: survivors[0], right: survivors[1] };
+  return { ...(Object.keys(persistence).length?{updates:persistence}:{}),...(reset?{resetSide:losingSide}:{}),stage, units: replayUnits, leftCount, ...(isMultiTeam ? { teamCounts } : {}), events, stops, frames, duration: time, winner: finalWinner, left: survivors[0], right: survivors.slice(1).reduce((a, b) => a + b, 0) };
 }

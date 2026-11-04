@@ -12,7 +12,9 @@ export const EFFECTS = {
   WEAKENED: {buff:false,color:'#355c97',description:'Every stat is reduced by 20.'},
   KURIBOH: {buff:true,color:'#a79773',description:'Blocks the next attack that would deal damage.'},
   BOMB: {buff:false,color:'#e04030',description:'Thunder spear latched onto this unit. Explodes after 5 seconds, dealing double damage to this unit and adjacent teammates.'},
-  GODSPEED: {buff:true,color:'#64d8ff',description:'Doubles Speed and reflects incoming attacks.'}
+  GODSPEED: {buff:true,color:'#64d8ff',description:'Doubles Speed and reflects incoming attacks.'},
+  POISON: {buff:false,color:'#a855f7',description:'Takes periodic damage from a strange concoction.'},
+  'POTION BOOST': {buff:true,color:'#22c55e',description:'+15% Speed from an experimental potion.'}
 } as const;
 export type EffectId = keyof typeof EFFECTS;
 export type TimedEffect = {id:EffectId; until:number; source:number};

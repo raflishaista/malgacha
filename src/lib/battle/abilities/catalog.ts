@@ -23,11 +23,11 @@ const listedIds = new Set(catalog.map(ability => ability.characterId));
  * Excludes bosses, empty units, witches, and non-clone summons.
  */
 export function abilityIds(unit: AbilityHolder): number[] {
-  if (unit.boss || unit.empty || unit.witch || (unit.summonOwner !== undefined && !unit.clone)) {
+  if (unit.boss || unit.empty || unit.witch || (unit.summonOwner !== undefined && !unit.clone && unit.id !== 240069)) {
     return [];
   }
 
-  const baseId = listedIds.has(unit.id) ? [unit.id] : [];
+  const baseId = listedIds.has(unit.id) || (unit.summonOwner !== undefined && unit.id === 240069) ? [unit.id] : [];
   const extras = unit.extraAbilities ?? [];
   const allIds = Array.from(new Set([...baseId, ...extras]));
 

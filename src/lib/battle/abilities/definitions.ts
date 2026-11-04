@@ -6,7 +6,7 @@ import {
   MAGICAL_GIRL_SERIES,
   COPY_EXCLUDED
 } from './expanded-config';
-import { BOSS_ABILITY_RULES, DEOXYS_FORMES, SAHAQUIEL_ID } from '../../bosses';
+import { BOSS_ABILITY_RULES, DEOXYS_FORMES, SAHAQUIEL_ID, bossFor } from '../../bosses';
 import { abilityIds } from './catalog';
 import { abilityFor } from '../../journeys';
 import type { AbilityContext, AbilityDefinition } from './types';
@@ -177,7 +177,7 @@ export const kakuja: AbilityDefinition = {
   tracksAttackBonus: true,
   onOtherDeath(context, owner) {
     context.addAttack(owner, ABILITY_RULES.kakujaAttack);
-    context.heal(owner, ABILITY_RULES.kakujaHeal, 'Kakuja');
+    context.heal(owner, ABILITY_RULES.kakujaHeal, 'I am — a ghoul.');
   }
 };
 
@@ -451,11 +451,12 @@ export const timedCharacters: AbilityDefinition[] = [
     }
   },
 
-  // Light Yagami - Death Note (80): Eliminates highest-BST enemy after charge delay
+  // Light Yagami - Death Note (80): Eliminates highest-BST enemy periodically after charge delay (15% to bosses)
   {
     id: 80,
     offensive: true,
     cannotAttack: true,
+    bossGauge: true,
     cooldown: R.deathNoteDelay,
     targets: 'enemy',
     selectTarget(context, owner) {
@@ -468,11 +469,18 @@ export const timedCharacters: AbilityDefinition[] = [
       });
     },
     onTimed(context, owner) {
-      const target = context.target(owner);
+      const targets = context.enemies(owner);
+      if (!targets.length) return { nextDelay: R.deathNoteDelay };
+      const target = targets.reduce((best, curr) => {
+        const bestTotal = Object.values(context.stats[best]).reduce((a, b) => a + b, 0);
+        const currTotal = Object.values(context.stats[curr]).reduce((a, b) => a + b, 0);
+        return currTotal > bestTotal ? curr : best;
+      });
       if (target !== undefined) {
-        context.damage(owner, target, 1, 'Death Note', true);
+        const isBoss = !!context.units[target]?.boss;
+        context.damage(owner, target, isBoss ? 0.15 : 1, 'Death Note', true);
       }
-      return { nextDelay: Infinity };
+      return { nextDelay: R.deathNoteDelay };
     }
   },
 
@@ -833,9 +841,12 @@ export const activeCharacters: AbilityDefinition[] = [
     }
   },
 
-  // Rimuru Tempest - Predator (141358): Permanently absorbs passives of defeated foes
+  // All For One (141358)
+  { id: 141358 },
+
+  // Meruem - Aura Synthesis (23277): Consumes enemies he defeats, gaining their abilities
   {
-    id: 141358,
+    id: 23277,
     onKill(context, owner, target) {
       for (const id of abilityIds(context.units[target])) {
         context.grant(owner, id, true);
@@ -972,6 +983,35 @@ export const sahaquiel: AbilityDefinition = {
   onTimed(context, owner) {
     context.defeatOpponents(owner, '10th Angel');
     return { nextDelay: Infinity };
+  }
+};
+
+/** Mahoraga (240069) - Adaptation: After being affected by an ability once, becomes immune to that ability */
+export const mahoragaAdaptation: AbilityDefinition = {
+  id: 240069,
+  onEnemyActivation(context, owner, source, id, targets) {
+    const s = context.state(owner, 240069);
+    s.adapted = s.adapted ?? new Set<number>();
+    const title = abilityFor(id)?.title ?? bossFor({ id })?.title ?? 'Ability';
+
+    const affectsOwner =
+      targets.includes(owner) ||
+      id === 4004 ||
+      id === 4003 ||
+      context.enemies(source).includes(owner);
+
+    if (!affectsOwner) return;
+
+    if (s.adapted.has(id)) {
+      const idx = targets.indexOf(owner);
+      if (idx >= 0) targets.splice(idx, 1);
+      context.emit(owner, owner, 'buff', 'Immune (' + title + ')');
+      if (targets.length === 0) return 'interrupt';
+      return;
+    }
+
+    s.pendingAdaptation = s.pendingAdaptation ?? new Set<number>();
+    s.pendingAdaptation.add(id);
   }
 };
 
@@ -1129,10 +1169,11 @@ export const santoryu: AbilityDefinition = {
   }
 };
 
-/** Portgas D. Ace - Dai Enkai: Entei (2072): Periodic 5s AoE that burns */
+/** Portgas D. Ace - Dai Enkai: Entei (2072): Once per battle 5s AoE that burns */
 export const daiEnkaiEntei: AbilityDefinition = {
   id: 2072,
   offensive: true,
+  oncePerBattle: true,
   cooldown: 5,
   bossGauge: true,
   onTimed(context, owner) {
@@ -1140,7 +1181,7 @@ export const daiEnkaiEntei: AbilityDefinition = {
       context.inflictBurn(owner, target);
     }
     return {
-      nextDelay: 5,
+      nextDelay: Infinity,
       attack: {
         kind: 'boss-attack',
         title: 'Dai Enkai: Entei'
@@ -1211,5 +1252,6 @@ export const bossAbilities: readonly AbilityDefinition[] = [
   kurama,
   gunDevil,
   deoxys,
-  sahaquiel
+  sahaquiel,
+  mahoragaAdaptation
 ];

@@ -16,7 +16,30 @@ const rng = (initial = 391) => { let seed = initial; return () => ((seed = (Math
 it('keeps boss abilities out of ordinary characters and Stand Arrow rewards', () => {
   for (const entry of BOSSES) expect(IMPLEMENTED_ABILITIES).not.toContain(entry.id);
   expect(implementationsFor({ ...boss(7407), boss: false })).toEqual([]);
-  expect(implementationsFor(boss(240069))).toEqual([]);
+  expect(implementationsFor({ ...boss(240069), boss: false })).toEqual([]);
+  expect(implementationsFor(boss(240069))).toEqual([expect.objectContaining({ id: 240069 })]);
+});
+
+it('Mahoraga adapts to an ability after being affected once and becomes immune to time stop and damage', () => {
+  const left = players(1);
+  left[0].extraAbilities = [4004]; // Dio's The World (stops time at 10s, 20s)
+  left[0].baseStats.attack = 10;
+  left[0].baseStats.hp = 10000;
+  const right = [boss(240069, 10000)];
+  right[0].baseStats.speed = 100;
+  const replay = simulateBattle(left, right, () => 0);
+
+  // Time stop 1 (at 10s): Mahoraga was affected
+  expect(replay.stops![0].start).toBe(10);
+  expect(replay.stops![0].affected).toContain(1);
+
+  // After time stop 1, Mahoraga adapts
+  expect(replay.events.some(e => e.target === 1 && e.ability === 'Adapted (The World)')).toBe(true);
+
+  // Time stop 2 (at 20s): Mahoraga is immune!
+  expect(replay.stops![1].start).toBe(20);
+  expect(replay.stops![1].affected).not.toContain(1);
+  expect(replay.events.some(e => e.target === 1 && e.ability === 'Immune (The World)')).toBe(true);
 });
 it('Grand Fisher summons an attacking quarter-stat Taunt lure, then replaces it ten seconds after death', () => {
   const left = players(); left.forEach(c => { c.baseStats.speed = 30; c.baseStats.attack = 300; });

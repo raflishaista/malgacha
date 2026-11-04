@@ -8,12 +8,14 @@ const rng = (initial = 123) => { let seed = initial; return () => ((seed = (Math
 
 it('splits stage rolls equally between effects and scenery, uniformly within each group', () => {
   const random = rng(), counts = Object.fromEntries(Object.keys(STAGES).map(id => [id, 0]));
+  const effectCount = Object.values(STAGES).filter(s => s.effect).length;
+  const sceneryCount = Object.values(STAGES).filter(s => !s.effect).length;
   for (let i = 0; i < 120000; i++) counts[rollStage(random)]++;
-  for (const id of Object.keys(STAGES) as StageId[]) expect(counts[id] / 120000).toBeCloseTo(0.5 / (STAGES[id].effect ? 7 : 5), 2);
+  for (const id of Object.keys(STAGES) as StageId[]) expect(counts[id] / 120000).toBeCloseTo(0.5 / (STAGES[id].effect ? effectCount : sceneryCount), 2);
 });
 it('scenery has exactly the normal battle behavior', () => {
   const plain = simulateBattle(team(), team(), rng());
-  for (const stage of ['shuchiin', 'dusseldorf', 'ishigami', 'tracen', 'tootsuki'] as const) {
+  for (const stage of ['shuchiin', 'dusseldorf', 'ishigami', 'starry', 'the765', 'anteiku'] as const) {
     const replay = simulateBattle(team(), team(), rng(), stage);
     expect(replay.events).toEqual(plain.events); expect(replay.winner).toBe(plain.winner);
   }
@@ -114,6 +116,82 @@ it('Itomori impact ends the battle even when a living Witch remains', () => {
   expect(replay.frames!.at(-1)!.witches![0]).toBe(true);
   expect(replay.frames!.at(-1)!.hp[0]).toBeGreaterThan(0);
   expect([left, right]).toEqual(before);
+});
+it('Morioh instantly kills one random character from each team at start', () => {
+  const replay = simulateBattle(team(), team(), rng(), 'morioh');
+  const executions = replay.events.filter(e => e.kind === 'execute' && e.time === 0);
+  expect(executions).toHaveLength(2);
+  expect(executions[0].target).toBeLessThan(5);
+  expect(executions[1].target).toBeGreaterThanOrEqual(5);
+  expect(replay.frames![0].hp[executions[0].target]).toBe(0);
+  expect(replay.frames![0].hp[executions[1].target]).toBe(0);
+});
+it('Hell heralds the Darkness Devil, damages all units and applies WEAKENED', () => {
+  const replay = simulateBattle(team(), team(), rng(456), 'hell');
+  const herald = replay.events.find(e => e.ability?.includes('Darkness Devil'));
+  expect(herald).toBeDefined();
+  const weakened = replay.events.filter(e => e.ability?.includes('cuts off') || e.ability === 'WEAKENED');
+  expect(weakened.length).toBeGreaterThan(0);
+});
+it('Infinite Castle isolates matchups into rooms and changes rooms every 8s', () => {
+  const replay = simulateBattle(team(), team(), rng(), 'infinite_castle');
+  const roomChanges = replay.events.filter(e => e.ability?.includes('The rooms change'));
+  expect(roomChanges.length).toBeGreaterThan(0);
+  const f0 = replay.frames![0];
+  expect(f0.castleRooms).toBeDefined();
+  expect(f0.castleRooms!.some(r => r === 1)).toBe(true);
+});
+it('Inaba announces the thick fog at the start of battle', () => {
+  const replay = simulateBattle(team(), team(), rng(), 'inaba');
+  const fog = replay.events.find(e => e.ability?.includes('thick fog'));
+  expect(fog).toBeDefined();
+  expect(fog!.time).toBe(0);
+});
+it('Tracen Academy triggers periodic random student effects', () => {
+  const replay = simulateBattle(team(), team(), rng(), 'tracen');
+  const studentEvents = replay.events.filter(e => e.ability && (
+    e.ability.includes('Gold Ship') ||
+    e.ability.includes('Shinko Windy') ||
+    e.ability.includes('Agnes Tachyon') ||
+    e.ability.includes('Oguri Cap')
+  ));
+  expect(studentEvents.length).toBeGreaterThan(0);
+});
+it('Alcatraz Tower allows true free-for-all attacks across allies and enemies', () => {
+  const replay = simulateBattle(team(), team(), rng(), 'alcatraz');
+  const announcement = replay.events.find(e => e.ability?.includes('Battle Royale'));
+  expect(announcement).toBeDefined();
+  const teamAttacks = replay.events.filter(e => e.attacker >= 0 && e.target >= 0 && (
+    (e.attacker < 5 && e.target < 5) || (e.attacker >= 5 && e.target >= 5)
+  ) && !e.kind);
+  expect(teamAttacks.length).toBeGreaterThan(0);
+});
+it('Alcatraz Tower simulates 4-way battle royale when all opponent teams are present', () => {
+  const t1 = team(), t2 = team(), t3 = team(), t4 = team();
+  const replay = simulateBattle(t1, t2, rng(), 'alcatraz', [t3, t4]);
+  expect(replay.units).toHaveLength(20);
+  expect(replay.teamCounts).toEqual([5, 5, 5, 5]);
+  expect(replay.events.some(e => e.ability?.includes('Battle Royale'))).toBe(true);
+  expect(['left', 'right', 'draw']).toContain(replay.winner);
+  expect(replay.frames!.every(frame => frame.sides && frame.sides.length === 20)).toBe(true);
+});
+it('Axis reinforces left with Amuro, Bright, Hathaway and right with Char, Quess, Gyunei', () => {
+  const left = team(), right = team();
+  const replay = simulateBattle(left, right, rng(), 'axis');
+  expect(replay.units).toHaveLength(16);
+  expect(replay.leftCount).toBe(8);
+  expect(replay.units.map(u => u.name)).toContain('Ray, Amuro');
+  expect(replay.units.map(u => u.name)).toContain('Noa, Bright');
+  expect(replay.units.map(u => u.name)).toContain('Noa, Hathaway');
+  expect(replay.units.map(u => u.name)).toContain('Aznable, Char');
+  expect(replay.units.map(u => u.name)).toContain('Paraya, Quess');
+  expect(replay.units.map(u => u.name)).toContain('Guss, Gyunei');
+});
+it('Totsuki Culinary Academy periodically heals the lowest HP unit by 30%', () => {
+  const left = team(), right = team();
+  const replay = simulateBattle(left, right, rng(), 'tootsuki');
+  const heals = replay.events.filter(e => e.kind === 'heal' && e.ability?.includes('Shokugeki'));
+  expect(heals.length).toBeGreaterThan(0);
 });
 it('all stages finish with finite state when combined with implemented abilities', () => {
   for (const stage of Object.keys(STAGES) as StageId[]) {

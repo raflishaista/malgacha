@@ -106,7 +106,7 @@ export function implementationsFor(unit: AbilityHolder): AbilityDefinition[] {
   }
 
   const standardAbilities = abilityIds(unit).flatMap(id => {
-    const ability = characterAbilities.find(def => def.id === id);
+    const ability = characterAbilities.find(def => def.id === id) ?? (id === 240069 ? BOSS_ABILITIES.get(240069) : undefined);
     return ability ? [ability] : [];
   });
 

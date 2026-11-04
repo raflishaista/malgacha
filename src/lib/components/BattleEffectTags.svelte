@@ -50,8 +50,8 @@
       class:buffs={buff}
       class:debuffs={!buff}
     >
-      {#each tags.filter((t) => t.buff === buff) as tag (tag.label)}
-        {@const tooltipId = `effect-${index}-${encodeURIComponent(tag.label)}`}
+      {#each tags.filter((t) => t.buff === buff) as tag, i (`${tag.label}-${i}`)}
+        {@const tooltipId = `effect-${index}-${i}-${encodeURIComponent(tag.label)}`}
         <span class="tag" style:--effect-color={tag.color}>
           <button type="button" aria-describedby={tooltipId}>
             {tag.label}

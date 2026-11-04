@@ -18,7 +18,11 @@
 
   $effect(() => {
     if (dialog && !dialog.open) {
-      dialog.showModal();
+      try {
+        dialog.showModal();
+      } catch {
+        dialog.setAttribute('open', '');
+      }
     }
   });
 </script>
@@ -31,7 +35,7 @@
   {/if}
 
   <div class="choices">
-    {#each choices as id (id)}
+    {#each choices as id, index (`${index}-${id}`)}
       {@const item = ITEMS[id]}
       {@const rarityColor = ITEM_COLORS[item.rarity]}
       <button
