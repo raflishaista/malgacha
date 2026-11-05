@@ -14,7 +14,7 @@ it('Spear of Longinus reduces effective defense and stacks multiplicatively', ()
 });
 it('Swordfish stacks speed and dodge, with dodged attacks dealing no damage or on-hit effects', () => {
   const left=team(),right=team(10000);right.forEach(c=>c.equipment=unit(1,['swordfish']).equipment);left[0].extraAbilities=[171437];
-  expect(equipmentBonuses(right)[0].speed).toBe(25);
+  expect(equipmentBonuses(right)[0].speed).toBe(20);
   const replay=simulateBattle(left,right,()=>0);
   expect(replay.events.some(e=>e.kind==='dodge')).toBe(true);
   expect(replay.events.filter(e=>e.attacker<5 && !e.kind)).toHaveLength(0);

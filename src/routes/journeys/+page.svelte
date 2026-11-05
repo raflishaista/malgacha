@@ -2,6 +2,13 @@
   import { onMount } from 'svelte';
   import SiteHeader from '$lib/components/SiteHeader.svelte';
   import JourneyEncounter from '$lib/components/JourneyEncounter.svelte';
+  import {
+    saveJobToClient,
+    getJobFromClient,
+    toJobView,
+    setMeta,
+    getMeta
+  } from '$lib/client/db';
   import type { JobView, JourneyCharacter as JourneyUnit } from '$lib/types';
   import '../../style.css';
 
@@ -18,9 +25,10 @@
   const working = $derived(!!job && ['queued', 'listing', 'fetching'].includes(job.state));
   const STORAGE_KEY = 'malgacha-journeys-import';
 
-  async function api(path: string, body?: unknown) {
+  async function api(path: string, body?: unknown, method?: string) {
+    const httpMethod = method ?? (body === undefined ? 'GET' : 'POST');
     const response = await fetch(path, {
-      method: body === undefined ? 'GET' : 'POST',
+      method: httpMethod,
       headers: body === undefined ? {} : { 'content-type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body)
     });
@@ -30,6 +38,23 @@
     });
 
     if (!response.ok) {
+      // If serverless container restarted and lost job, try auto-restoring from IndexedDB
+      if (
+        (response.status === 404 || result.error?.includes('not found')) &&
+        job?.id
+      ) {
+        const local = await getJobFromClient(job.id);
+        if (local) {
+          const syncRes = await fetch(`/api/imports/${encodeURIComponent(job.id)}`, {
+            method: 'PUT',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ job: local })
+          });
+          if (syncRes.ok) {
+            return api(path, body, method);
+          }
+        }
+      }
       throw new Error(result.error || 'Request failed.');
     }
 
@@ -46,6 +71,11 @@
     if (!job || job.state !== 'complete') return;
     const starterResponse = await api(`/api/imports/${job.id}/starter`, { reroll });
     team = starterResponse.characters;
+    const local = await getJobFromClient(job.id);
+    if (local) {
+      local.starterTeam = team;
+      await saveJobToClient(local);
+    }
   }
 
   async function startImport(demo = false) {
@@ -64,6 +94,7 @@
       } catch {
         // Optional localStorage fallback
       }
+      await setMeta('active_journey_id', job!.id);
       await loadStarterTeam();
     } catch (cause) {
       setError(cause);
@@ -92,7 +123,7 @@
   onMount(() => {
     alive = true;
 
-    // Restore saved session from localStorage
+    // Restore saved session from IndexedDB first, with localStorage fallback
     void (async () => {
       try {
         let savedId: string | null = null;
@@ -101,11 +132,44 @@
         } catch {
           // Optional storage
         }
+        if (!savedId) {
+          savedId = await getMeta('active_journey_id');
+        }
 
         if (savedId) {
-          job = await api(`/api/imports/${encodeURIComponent(savedId)}`);
-          username = job!.username;
-          await loadStarterTeam();
+          // 1. Fast restore from local IndexedDB
+          const localJob = await getJobFromClient(savedId);
+          if (localJob && alive) {
+            job = toJobView(localJob);
+            username = localJob.username;
+            if (localJob.starterTeam && localJob.starterTeam.length) {
+              team = localJob.starterTeam as JourneyUnit[];
+            }
+            busy = false;
+          }
+
+          // 2. Verify with server or re-hydrate server if server cold-started
+          try {
+            const serverJob = await api(`/api/imports/${encodeURIComponent(savedId)}`);
+            if (alive) {
+              job = serverJob;
+              username = serverJob.username;
+              await loadStarterTeam();
+            }
+          } catch (serverErr) {
+            if (localJob) {
+              await fetch(`/api/imports/${encodeURIComponent(savedId)}`, {
+                method: 'PUT',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ job: localJob })
+              });
+              if (alive) {
+                await loadStarterTeam();
+              }
+            } else {
+              throw serverErr;
+            }
+          }
         }
       } catch (cause) {
         setError(cause);
@@ -123,8 +187,19 @@
       try {
         const updatedJob = await api(`/api/imports/${currentId}`);
         if (alive && job?.id === currentId && !busy) {
+          const wasNotComplete = job.state !== 'complete';
           job = updatedJob;
           error = '';
+          if (wasNotComplete && updatedJob.state === 'complete') {
+            try {
+              const full = await api(`/api/imports/${currentId}?full=true`);
+              if (full && full.id) {
+                await saveJobToClient(full);
+              }
+            } catch {
+              // Optional full fetch
+            }
+          }
           await loadStarterTeam();
         }
       } catch (cause) {

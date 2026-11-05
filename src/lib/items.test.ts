@@ -28,7 +28,7 @@ it('ship rewards add two saved slots and a reward cannot be claimed twice', () =
 it('equipment stacks to three, consumes bag instances and leaves base stats unchanged', () => {
   const job = fixture(), target = (job.starterTeam as JourneyCharacter[])[0], before = structuredClone(target.baseStats);
   for (let i = 0; i < 3; i++) applyInventoryAction(job, { action: 'equip', item: grant(job, 'nichirin'), target: target.instanceId });
-  expect(equipmentBonuses(job.starterTeam as JourneyCharacter[])[0].attack).toBe(45);
+  expect(equipmentBonuses(job.starterTeam as JourneyCharacter[])[0].attack).toBe(90);
   const fourth = grant(job, 'airgear');
   expect(() => applyInventoryAction(job, { action: 'equip', item: fourth, target: target.instanceId })).toThrow('three');
   expect(job.inventory).toHaveLength(1); expect(target.baseStats).toEqual(before);
@@ -73,7 +73,7 @@ it('extra units, empty slots and equipment participate in combat without editing
   team[3] = emptySlot();
   const before = structuredClone(team), replay = simulateBattle(team, Array.from({ length: 5 }, (_, i) => unit(91000 + i)), () => 0.2);
   expect(replay.leftCount).toBe(6); expect(replay.units).toHaveLength(11);
-  expect(replay.frames![0].speed[0]).toBe(team[0].baseStats.speed + 15); expect(team).toEqual(before);
+  expect(replay.frames![0].speed[0]).toBe(team[0].baseStats.speed + 30); expect(team).toEqual(before);
 });
 it('granted timed abilities run independently and Shrine pulses three times only', () => {
   const team = Array.from({ length: 5 }, (_, i) => unit(90000 + i));

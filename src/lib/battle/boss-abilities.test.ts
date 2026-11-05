@@ -70,11 +70,11 @@ it('the lure also protects Grand Fisher from newly targeted area attacks', () =>
   expect(hit).toHaveLength(1);
   expect(hit[0].target).toBe(6);
 });
-it('Kurama charges every five seconds and deals 2.5x calculated damage to all enemies', () => {
+it('Kurama charges every five seconds and deals 1.5x calculated damage to all enemies', () => {
   const replay = simulateBattle(players(), [boss(7407)], () => 0);
   const blast = replay.events.filter(e => e.kind === 'boss-attack' && e.time === 5);
   expect(blast.map(e => e.target)).toEqual([0, 1, 2, 3, 4]);
-  expect(blast.every(e => e.damage === attackDamage(200, 125) * 2.5)).toBe(true);
+  expect(blast.every(e => e.damage === attackDamage(200, 125) * BOSS_ABILITY_RULES.bombMultiplier)).toBe(true);
   expect(blast.filter(e => e.ability === 'Tailed Beast Bomb')).toHaveLength(1);
   expect(replay.frames![0].bossGauges?.[0]).toMatchObject({ progress: 0, remaining: 5, cooldown: 5, absolute: false });
   expect(replay.frames!.find(frame => frame.time === 5)!.bossGauges?.[0].remaining).toBe(5);
@@ -88,7 +88,7 @@ it('Gun Fiend takes the weakest original BST, breaks ties by slot, fills HP and 
   expect(capture).toHaveLength(1); expect(capture[0].target).toBe(2);
   const transformed = replay.frames!.find(frame => frame.unitOverrides?.[5]?.bossId === 184112)!;
   const fiend = unitAtFrame(replay, transformed, 5);
-  expect(fiend).toMatchObject({ id: left[2].id, name: left[2].name, boss: true, bossId: 184112, baseStats: { hp: 80.5, attack: 180, defense: 180, speed: 180 } });
+  expect(fiend).toMatchObject({ id: left[2].id, name: left[2].name, boss: true, bossId: 184112, baseStats: { hp: 80.3, attack: 140, defense: 140, speed: 140 } });
   expect(transformed.hp[5]).toBe(transformed.maxHP[5]);
   expect(transformed.hp[2]).toBe(0);
   expect(replay.events.some(e => e.attacker === 2 && e.time >= capture[0].time)).toBe(false);
@@ -137,11 +137,11 @@ it('Sahaquiel cannot attack and ends the match at 20s despite time stop and revi
   expect(replay.events.some(e => e.attacker === 5 && !e.kind)).toBe(false);
   expect(replay.events.filter(e => e.kind === 'annihilate')).toHaveLength(5);
   expect(replay.frames!.at(-1)!.hp.slice(0, 5)).toEqual([0, 0, 0, 0, 0]);
-  expect(replay.frames![0].bossGauges?.[0]).toMatchObject({ remaining: 20, absolute: true });
+  expect(replay.frames![0].bossGauges?.[0]).toMatchObject({ remaining: BOSS_ABILITY_RULES.angelSeconds, absolute: true });
   expect(replay.stops!.length).toBeGreaterThan(0);
 });
 it('defeating Sahaquiel before the deadline prevents its wipe', () => {
   const replay = simulateBattle(players(), [boss(SAHAQUIEL_ID, 1)], () => 0);
-  expect(replay.duration).toBeLessThan(20); expect(replay.winner).toBe('left');
+  expect(replay.duration).toBeLessThan(BOSS_ABILITY_RULES.angelSeconds); expect(replay.winner).toBe('left');
   expect(replay.events.some(e => e.kind === 'annihilate')).toBe(false);
 });

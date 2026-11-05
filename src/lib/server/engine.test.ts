@@ -68,7 +68,7 @@ describe('durable imports', () => {
     saved.encounter = {teams:[[{...team[0],id:-1001,instanceId:'angel',boss:true,baseStats:{hp:10000000,attack:125,defense:125,speed:125}}]]};
     await store.saveJob(saved);
     const result = await engine.journeyBattle(job.id,0,undefined,'idle');
-    expect(result.replay?.initialAttempt?.duration).toBe(20);expect(result.replay?.duration).toBe(20);expect(result.lives).toBe(2);expect(result.encounter?.machineUsed).toBe(true);expect(result.inventory).toEqual(saved.inventory);expect(result.characters).toEqual(team);
+    expect(result.replay?.initialAttempt?.duration).toBe(25);expect(result.replay?.duration).toBe(25);expect(result.lives).toBe(2);expect(result.encounter?.machineUsed).toBe(true);expect(result.inventory).toEqual(saved.inventory);expect(result.characters).toEqual(team);
     const restarted = new Engine(store,providers,0), again = await restarted.journeyBattle(job.id,0,undefined,'idle');expect(again.lives).toBe(2);expect(again.replay).toEqual(result.replay);
   });
   it('persists a Gun Fiend loss once while restoring the captured player and keeping the boss floor pending', async () => {

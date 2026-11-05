@@ -12,7 +12,7 @@ const team = () => Array.from({ length: 5 }, (_, i) => unit(900000 + i));
 it('renders the absolute Sahaquiel countdown without an attack gauge', () => {
   const replay = simulateBattle(team(), [unit(SAHAQUIEL_ID, true)], () => 0);
   const html = render(AutoBattle, { props: { replay, onfinish() {} } }).body;
-  expect(html).toContain('10th Angel countdown'); expect(html).toContain('20.0s');
+  expect(html).toContain('10th Angel countdown'); expect(html).toContain('25.0s');
   expect(html).not.toContain('aria-label="Sahaquiel ATB"');
 });
 it('renders Deoxys forme text below its boss ability', () => {

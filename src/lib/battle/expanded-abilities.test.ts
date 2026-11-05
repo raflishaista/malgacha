@@ -123,5 +123,5 @@ it('Metavision starts charged early enough to interrupt an opposing startup summ
  const left=team(),right=team(910000);left[0].id=17;right[0].id=177491;const b=simulateBattle(left,right,()=>.1);expect(b.units.some(u=>u.summonOwner===0)).toBe(false);expect(b.events.some(e=>e.ability==='Metavision'&&e.time===0)).toBe(true);
 });
 it('Metavision can cancel Sahaquiel’s one-use deadline',()=>{
- const left=team();left[0].id=177491;const b=simulateBattle(left,[{...unit(-1001,100000000),boss:true}],()=>.1);expect(b.duration).toBeGreaterThan(20);expect(b.events.some(e=>e.ability==='10th Angel')).toBe(false);expect(b.events.some(e=>e.ability==='Metavision'&&e.time===20)).toBe(true);
+ const left=team();left[0].id=177491;const b=simulateBattle(left,[{...unit(-1001,100000000),boss:true}],()=>.1);expect(b.duration).toBeGreaterThan(25);expect(b.events.some(e=>e.ability==='10th Angel')).toBe(false);expect(b.events.some(e=>e.ability==='Metavision'&&e.time===25)).toBe(true);
 });

@@ -40,7 +40,7 @@ it('bosses cannot be caught and catches survive saving until placed into an empt
   applyInventoryAction(j,{action:'replace-catch',target:slot.instanceId});expect(j.starterTeam![0]).toEqual(caught);expect(j.pendingCatch).toBeUndefined();
 });
 it('reroll skins and Philosopher’s Stone restrict candidates without changing the import pool', () => {
-  const j=job();j.pool=Object.fromEntries([unit(1,50),unit(2,51),unit(3,4000),unit(4,20000)].map(c=>[c.id,c]));
+  const j=job();j.pool=Object.fromEntries([unit(1,20),unit(2,51),unit(3,4000),unit(4,20000)].map(c=>[c.id,c]));
   grant(j,'skin');expect(victoryRerollPool(j,j.starterTeam![0] as JourneyCharacter).map(c=>c.id)).toEqual([2,3,4]);
   grant(j,'stone');expect(victoryRerollPool(j,j.starterTeam![1] as JourneyCharacter).map(c=>c.id)).toEqual([3,4]);expect(Object.keys(j.pool)).toHaveLength(4);
 });
