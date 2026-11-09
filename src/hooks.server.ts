@@ -9,7 +9,7 @@ if (!building) void engine.init().catch((error) => console.error('Cannot resume 
 
 export const handle: Handle = async ({ event, resolve }) => {
   if (event.url.pathname.startsWith('/api/')) {
-    const originConfig = dev ? {} : { ORIGIN: env.ORIGIN, RAILWAY_PUBLIC_DOMAIN: env.RAILWAY_PUBLIC_DOMAIN };
+    const originConfig = dev ? {} : { ORIGIN: env.ORIGIN, RAILWAY_PUBLIC_DOMAIN: env.RAILWAY_PUBLIC_DOMAIN, RENDER_EXTERNAL_URL: env.RENDER_EXTERNAL_URL, FLY_APP_NAME: env.FLY_APP_NAME };
     if (event.request.method === 'POST' && !allowedOrigin(event.request.headers.get('origin'), event.url.origin, originConfig)) {
       return json({ error: 'Request origin does not match the server configuration. Set ORIGIN to the exact public website URL (including https://) and redeploy.' }, { status: 403, headers: { 'cache-control': 'no-store' } });
     }

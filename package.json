@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "vite build",
-    "preview": "vite preview --host 127.0.0.1",
-    "start": "node build",
-    "start:local": "node --env-file=.env build",
+    "preview": "vite preview --host 0.0.0.0 --port 8080",
+    "start": "node start.js",
+    "start:local": "node --env-file=.env start.js",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "test": "vitest run",
     "prepare": "svelte-kit sync"
