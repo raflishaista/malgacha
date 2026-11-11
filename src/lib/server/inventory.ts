@@ -6,6 +6,7 @@ import {
   isBall,
   canUseOn,
   rollItem,
+  rewardChoices,
   relicCount,
   rerollFilter,
   type ItemId
@@ -79,7 +80,7 @@ export function victoryRerollPool(job: Job, target: JourneyCharacter) {
 }
 
 export type InventoryAction = {
-  action: 'claim' | 'equip' | 'use' | 'catch' | 'replace-catch' | 'wish' | 'dismiss-fusion';
+  action: 'claim' | 'equip' | 'use' | 'catch' | 'replace-catch' | 'place-wildcard' | 'wish' | 'dismiss-fusion';
   item?: string;
   target?: string;
   reward?: string;
@@ -104,6 +105,7 @@ function grantItem(job: Job, id: ItemId, random: () => number) {
 export function inventoryView(job: Job) {
   return {
     pendingCatch: job.pendingCatch ?? null,
+    pendingWildCard: job.pendingWildCard ?? null,
     itemNotice: job.itemNotice ?? '',
     fusionNotice: Boolean(job.fusionNotice),
     encounter: job.encounter ?? null,
@@ -145,6 +147,23 @@ export function applyInventoryAction(
     return;
   }
 
+  if (action.action === 'place-wildcard') {
+    if (!job.pendingWildCard) {
+      throw new Error('No Wild Card unit is waiting.');
+    }
+    const index = team.findIndex((c) => c.instanceId === action.target);
+    if (index < 0) {
+      throw new Error('Choose a team slot.');
+    }
+    team[index] = job.pendingWildCard;
+    delete job.pendingWildCard;
+    const nextIdx = (job.wildCardQueue ?? []).findIndex((w) => w.returnFloor <= (job.arenaWins ?? 0));
+    if (nextIdx >= 0) {
+      job.pendingWildCard = job.wildCardQueue!.splice(nextIdx, 1)[0].unit;
+    }
+    return;
+  }
+
   if (action.action === 'wish') {
     if (relicCount(job.inventory, 'dragonball') < 7) {
       throw new Error('Collect seven Dragon Balls first.');
@@ -180,7 +199,16 @@ export function applyInventoryAction(
     }
     const id = action.item as ItemId;
     grantItem(job, id, random);
-    delete job.itemReward;
+    if ((job.pendingItemRewards ?? 0) > 0) {
+      job.pendingItemRewards!--;
+      if (job.pendingItemRewards === 0) delete job.pendingItemRewards;
+      job.itemReward = {
+        id: randomUUID(),
+        choices: rewardChoices(job.inventory ?? [], random)
+      };
+    } else {
+      delete job.itemReward;
+    }
     return;
   }
 

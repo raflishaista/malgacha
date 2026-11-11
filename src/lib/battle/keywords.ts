@@ -2,7 +2,7 @@ import definitions from '../data/events.json';
 import { implementationsFor } from './abilities';
 import type { BaseStats } from '../stats';
 import type { JourneyCharacter } from '../types';
-export type Keyword = 'TAUNT' | 'SOUL GEM' | 'MARINE SOLIDARITY' | 'WITCH' | 'LIFESTEAL' | 'HOST OF SUKUNA';
+export type Keyword = 'TAUNT' | 'SOUL GEM' | 'MARINE SOLIDARITY' | 'WITCH' | 'LIFESTEAL' | 'HOST OF SUKUNA' | 'WILD CARD';
 export const KEYWORD_INFO: Record<Keyword, string> = { ...definitions.keywords, LIFESTEAL: 'Attacks heal this unit for half the actual damage dealt.', 'HOST OF SUKUNA': 'Stacks unlock King of Poison (5), Cleave (10), Incomplete Malevolent Shrine (15), and Incarnated Sukuna (20).' };
 export const KEYWORD_RULES = { soulGem: definitions.rules.soulGem, witch: definitions.rules.witch, marine: definitions.rules.marine };
 export const keywordsFor = (unit: Pick<JourneyCharacter, 'id' | 'boss' | 'bossId' | 'empty' | 'extraAbilities' | 'witch' | 'soulGem' | 'marine' | 'keywords' | 'sukunaStacks' | 'removedAbilities' | 'negated'>): Keyword[] => {

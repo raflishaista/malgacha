@@ -11,7 +11,7 @@
   import { relicCount, rerollFilter, type ItemId, type ItemInstance } from '$lib/items';
   import { bossFor } from '$lib/bosses';
   import { STAGE_REVEAL_STEP_MS } from '$lib/battle/playback';
-  import { EVENTS, type JourneyEvent, type EventAction } from '$lib/events';
+  import { EVENTS, eventCharacter, type JourneyEvent, type EventAction } from '$lib/events';
   import { STAGES, type StageId } from '$lib/stages';
   import type { InventoryAction } from '$lib/server/inventory';
   import type { BattleReplay } from '$lib/battle/types';
@@ -48,8 +48,10 @@
   let inventory = $state<ItemInstance[]>([]);
   let itemReward = $state<{ id: string; choices: ItemId[] } | null>(null);
   let pendingCatch = $state<JourneyCharacter | null>(null);
+  let pendingWildCard = $state<JourneyCharacter | null>(null);
   let itemNotice = $state('');
   let fusionNotice = $state(false);
+  const egoNpc = eventCharacter(178715);
 
   // Run Life & Progression
   let lives = $state(3);
@@ -111,6 +113,7 @@
       itemReward = data.itemReward;
       replacementTeam = data.characters;
       pendingCatch = data.pendingCatch;
+      pendingWildCard = data.pendingWildCard ?? null;
       itemNotice = data.itemNotice;
       fusionNotice = data.fusionNotice;
 
@@ -134,7 +137,7 @@
         eventOpen = !!(
           selected !== null &&
           events[selected] &&
-          ['choice', 'target', 'reward'].includes(events[selected]!.status)
+          ['choice', 'target', 'confirm', 'play', 'reward'].includes(events[selected]!.status)
         );
       }
       return true;
@@ -150,6 +153,7 @@
     if (selected === null) return;
     busy = true;
     error = '';
+    let startEventBattle = false;
     try {
       const response = await fetch(`/api/imports/${jobId}/event`, {
         method: 'POST',
@@ -162,6 +166,7 @@
       replacementTeam = data.characters;
       inventory = data.inventory;
       itemReward = data.itemReward;
+      pendingWildCard = data.pendingWildCard ?? null;
       lives = data.lives;
       events = data.encounter.events;
       opponents = data.encounter.teams;
@@ -171,12 +176,15 @@
       if (events[selected]?.status === 'battle') {
         eventOpen = false;
         mode = 'idle';
-        await showView('adventure', true);
+        startEventBattle = true;
       }
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Event failed.';
     } finally {
       busy = false;
+    }
+    if (startEventBattle) {
+      await battle();
     }
   }
 
@@ -210,6 +218,7 @@
 
       inventory = data.inventory ?? inventory;
       itemReward = data.itemReward ?? null;
+      pendingWildCard = data.pendingWildCard ?? null;
       pendingLives = data.lives ?? 3;
       gameOver = !!data.gameOver;
       events = data.encounter?.events ?? events;
@@ -283,7 +292,11 @@
     if (gameOver) {
       resetNotice = 'Game over. A new run is ready: three lives, a new team, no items, and the floor counter reset.';
     }
-    if (selectedEvent?.status === 'reward') {
+    if (
+      selectedEvent &&
+      (selectedEvent.status === 'reward' ||
+        (selectedEvent.status === 'complete' && selectedEvent.outcome))
+    ) {
       eventOpen = true;
     }
     void showView('battle', true);
@@ -324,6 +337,7 @@
       itemReward = null;
       replacementTeam = data.characters;
       pendingCatch = null;
+      pendingWildCard = null;
       itemNotice = '';
       fusionNotice = false;
       resetNotice = 'New run started. Three lives, a new team, no items, and the floor counter reset.';
@@ -378,7 +392,29 @@
   <FusionNotice oncontinue={() => inventoryAction({ action: 'dismiss-fusion' })} />
 {/if}
 
-{#if itemReward && !playing}
+{#if eventOpen && selectedEvent && !playing}
+  <EventPopup
+    event={selectedEvent}
+    team={currentTeam}
+    {busy}
+    {error}
+    onchoice={(choice) => eventAction({ choice })}
+    ontarget={(target) => eventAction({ target })}
+    onaction={(act) => eventAction(act)}
+    onclose={() => {
+      eventOpen = false;
+      if (
+        selectedEvent?.status === 'choice' &&
+        selectedEvent.id !== 'parasyte' &&
+        selectedEvent.id !== 'rocket'
+      ) {
+        selected = null;
+      }
+    }}
+  />
+{/if}
+
+{#if itemReward && !playing && !eventOpen}
   <ItemReward
     choices={itemReward.choices}
     {busy}
@@ -387,19 +423,48 @@
   />
 {/if}
 
-{#if eventOpen && selectedEvent && !playing && !itemReward}
-  <EventPopup
-    event={selectedEvent}
-    team={currentTeam}
-    {busy}
-    {error}
-    onchoice={(choice) => eventAction({ choice })}
-    ontarget={(target) => eventAction({ target })}
-    onclose={() => {
-      eventOpen = false;
-      if (selectedEvent?.status === 'choice') selected = null;
-    }}
-  />
+{#if pendingWildCard && !playing && !eventOpen && !itemReward}
+  <div class="wildcard-backdrop" role="presentation">
+    <dialog class="wildcard-modal" open aria-labelledby="wildcard-return-title">
+      <header class="wildcard-header">
+        <span class="wildcard-kicker">WILD CARD RETURN</span>
+        <h2 id="wildcard-return-title">Ego’s Wild Card</h2>
+      </header>
+      <div class="wildcard-body">
+        {#if egoNpc.image}
+          <figure class="wildcard-npc">
+            <img src={egoNpc.image} alt={egoNpc.name} />
+            <figcaption>{egoNpc.name}</figcaption>
+          </figure>
+        {/if}
+        <div class="wildcard-quote-box">
+          <p class="wildcard-quote">“Your {pendingWildCard.name} is back. A beast is born.”</p>
+          <p class="wildcard-sub">{pendingWildCard.name} returned with +50 to all stats and the WILD CARD keyword!</p>
+        </div>
+        <div class="wildcard-featured">
+          <Card character={pendingWildCard} />
+        </div>
+        <p class="wildcard-prompt">Choose a slot for {pendingWildCard.name} to reclaim:</p>
+        <div class="wildcard-units">
+          {#each currentTeam as unit (unit.instanceId)}
+            <div class="wildcard-slot">
+              <Card character={unit} team={currentTeam} />
+              <button
+                class="primary"
+                disabled={busy}
+                onclick={() => inventoryAction({ action: 'place-wildcard', target: unit.instanceId })}
+              >
+                {unit.empty ? 'Fill empty slot' : `Replace ${unit.name}`}
+              </button>
+            </div>
+          {/each}
+        </div>
+        {#if error}
+          <p role="alert" class="wildcard-error">{error}</p>
+        {/if}
+      </div>
+    </dialog>
+  </div>
 {/if}
 
 <section hidden={view !== 'inventory'} aria-label="Inventory view">
@@ -652,19 +717,29 @@
 
   <div class="actions">
     {#if !opponents.length}
-      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={depart}>
-        {busy ? 'Finding opponents…' : itemReward ? 'CLAIM REWARD TO PROCEED' : 'DEPART'}
+      <button class="fight-button primary" disabled={busy || !!itemReward || !!pendingWildCard} onclick={depart}>
+        {busy
+          ? 'Finding opponents…'
+          : itemReward
+            ? 'CLAIM REWARD TO PROCEED'
+            : pendingWildCard
+              ? 'PLACE WILD CARD TO PROCEED'
+              : 'DEPART'}
       </button>
     {:else if selectedEvent?.status === 'complete' && !fought}
-      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={depart}>
-        {itemReward ? 'CLAIM REWARD TO PROCEED' : 'NEXT FLOOR'}
+      <button class="fight-button primary" disabled={busy || !!itemReward || !!pendingWildCard} onclick={depart}>
+        {itemReward
+          ? 'CLAIM REWARD TO PROCEED'
+          : pendingWildCard
+            ? 'PLACE WILD CARD TO PROCEED'
+            : 'NEXT FLOOR'}
       </button>
     {:else if stage === 'alcatraz' && !fought && !playing}
-      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={() => { selected = 0; void battle(); }}>
+      <button class="fight-button primary" disabled={busy || !!itemReward || !!pendingWildCard} onclick={() => { selected = 0; void battle(); }}>
         ENTER BATTLE ROYALE
       </button>
     {:else if enemy && !fought && !playing}
-      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={() => battle()}>
+      <button class="fight-button primary" disabled={busy || !!itemReward || !!pendingWildCard} onclick={() => battle()}>
         FIGHT
       </button>
     {:else if fought}
@@ -681,7 +756,7 @@
           Use a ball on a defeated opponent
         </button>
       {/if}
-      {#if won}
+      {#if won && !selectedEvent}
         <p>
           {rewardUsed
             ? 'Replacement saved.'
@@ -689,8 +764,14 @@
         </p>
       {/if}
 
-      <button class="fight-button primary" disabled={busy || !!itemReward} onclick={depart}>
-        {busy ? 'Finding opponents…' : itemReward ? 'CLAIM REWARD TO PROCEED' : 'NEXT OPPONENTS'}
+      <button class="fight-button primary" disabled={busy || !!itemReward || !!pendingWildCard} onclick={depart}>
+        {busy
+          ? 'Finding opponents…'
+          : itemReward
+            ? 'CLAIM REWARD TO PROCEED'
+            : pendingWildCard
+              ? 'PLACE WILD CARD TO PROCEED'
+              : 'NEXT OPPONENTS'}
       </button>
     {/if}
   </div>
@@ -1045,6 +1126,134 @@
     .alcatraz-preview-middle {
       grid-template-columns: 1fr;
       gap: 8px;
+    }
+  }
+
+  /* Wild Card Return Modal */
+  .wildcard-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.88);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    z-index: 45;
+  }
+  .wildcard-modal {
+    position: static;
+    margin: 0;
+    width: min(880px, 100%);
+    max-height: 92vh;
+    overflow-y: auto;
+    border: 2px solid var(--accent);
+    background: #101010;
+    color: var(--ink);
+    padding: 0;
+    box-shadow: 0 0 36px rgba(240, 45, 138, 0.22);
+    border-radius: 0;
+  }
+  .wildcard-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 20px 24px 16px;
+    border-bottom: 1px solid var(--purple-line);
+    background: #0b0b0b;
+  }
+  .wildcard-kicker {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    padding: 2px 8px;
+    margin-bottom: 6px;
+  }
+  .wildcard-header h2 {
+    margin: 0;
+    font-family: var(--punch);
+    font-size: clamp(28px, 4vw, 38px);
+    color: var(--accent);
+  }
+  .wildcard-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 24px;
+    gap: 18px;
+  }
+  .wildcard-npc {
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    width: 120px;
+  }
+  .wildcard-npc img {
+    width: 100%;
+    aspect-ratio: var(--character-portrait-ratio, 225 / 350);
+    object-fit: cover;
+    border: 2px solid var(--accent);
+    background: #080808;
+  }
+  .wildcard-npc figcaption {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .wildcard-quote-box {
+    max-width: 620px;
+    background: #080808;
+    border: 1px solid var(--purple-line);
+    border-left: 3px solid var(--accent);
+    border-right: 3px solid var(--accent);
+    padding: 14px 20px;
+  }
+  .wildcard-quote {
+    margin: 0 0 6px;
+    font-size: 17px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .wildcard-sub {
+    margin: 0;
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .wildcard-featured {
+    width: 180px;
+  }
+  .wildcard-prompt {
+    margin: 0;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .wildcard-units {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+  }
+  .wildcard-slot {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .wildcard-slot button {
+    width: 100%;
+  }
+  .wildcard-error {
+    margin: 8px 0 0;
+    color: #ef4444;
+    font-weight: bold;
+    font-size: 14px;
+  }
+  @media (max-width: 720px) {
+    .wildcard-units {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
     }
   }
 </style>

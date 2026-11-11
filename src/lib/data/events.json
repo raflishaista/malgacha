@@ -1,23 +1,67 @@
 {
   "events": {
     "creature": {
-      "title": "A Small White Creature Appears",
-      "text": "Would you like to be a magical girl?"
+      "title": "Kyubey",
+      "characterId": 38566,
+      "quote": "“I want a member of your team to make a contract with me and become a Magical Girl!”",
+      "text": "Make a contract with Kyubey to grant one unit a Soul Gem?"
     },
     "marine": {
-      "title": "Marine Capture",
-      "text": "A group of Marines are holding someone in public, but you don’t know who. Will you save them?"
+      "title": "Navy Capture",
+      "quote": "“Move it, inmate!”",
+      "text": "You see someone captured and being put onto the gallows by the Navy. Save them by fighting the Navy?"
     },
-    "": {
-      "title": "Who Wants To Be A Madaoinaire (WIP)",
-      "text": "Quiz time! Answer the question correctly."
+    "wildcard": {
+      "title": "Ego’s Wild Card",
+      "characterId": 178715,
+      "quote": "“Welcome. Your team has a weak link, doesn’t it? Can you identify which one, as a coach yourself?”",
+      "text": "Pick one unit from your team for the Blue Lock Wild Card program."
+    },
+    "parasyte": {
+      "title": "Parasyte",
+      "characterId": 13773,
+      "text": "A Parasyte crawled into a unit’s arm! Will it crawl to their head, or will they fight back and prevent it?"
+    },
+    "rocket": {
+      "title": "Team Rocket",
+      "characterIds": [3935, 3936, 3937, 141187],
+      "quote": "“Prepare for trouble!”\n“...and make it double!”\n“To protect the world from devastation!”\n“To unite all peoples within our nation!”\n“To denounce the evils of truth and love!”\n“To extend our reach to the stars above!”\n“Jessie!”\n“James!”\n“Team Rocket, blast off at the speed of light!”\n“Surrender now, or prepare to fight!”\n“Meowth, that’s right!”\n“Wobbuffet!”",
+      "text": "Team Rocket is aiming to steal a unit from your team!"
+    },
+    "janken": {
+      "title": "Janken Boy",
+      "characterId": 126032,
+      "quote": "“Hey there! Wanna play rock-paper-scissors?”",
+      "text": "While traveling the streets of Morioh, you encounter a boy. He challenges you to a rock-paper-scissors game! Do you accept?"
+    },
+    "gotoh": {
+      "title": "Gotoh’s Coin Test",
+      "characterId": 60009,
+      "quote": "“I do not approve of you taking Master Killua away.”",
+      "text": "In order to proceed to the Zoldyck Mansion, Gotoh and his butlers test you. The butlers switch coins among themselves fast. Guess which one has it at the end to get Killua."
+    },
+    "hangman": {
+      "title": "Kakerou Hangman Game",
+      "characterId": 206970,
+      "quote": "“Pest. Do not stand in the way of my revolution.”",
+      "text": "The revolutionary, Sadakuni Ikki, challenges you to a Kakerou game of Old Maid, with a twist! Take turns drawing cards and getting rid of pairs. The one with the Joker at the end will be hanged."
+    },
+    "madao": {
+      "title": "Madaodog Madaonaire",
+      "characterId": 3760,
+      "text": "You woke up finding an ad for a quiz show with a reward of 10 million. Accept the quiz?"
     }
   },
   "rules": {
     "chance": 0.15,
     "soulGem": 0.15,
     "witch": 0.1,
-    "marine": 0.1
+    "marine": 0.1,
+    "wildCardFloors": 5,
+    "wildCardStatBoost": 50,
+    "parasyteStatBoost": 100,
+    "rocketBst": 625,
+    "rocketBalls": 10
   },
   "marineIds": [
     13018,
@@ -49,10 +93,89 @@
     4883,
     10101
   ],
+  "rocketIds": [
+    3935,
+    3936,
+    3937,
+    141187
+  ],
+  "quizQuestions": [
+    {
+      "question": "Which one of these is the name of Gojo Satoru’s Domain Expansion in Jujutsu Kaisen?",
+      "options": [
+        "Unlimited Void",
+        "Senbonzakura Kageyoshi",
+        "Malevolent Shrine",
+        "Otherworld Between Darkness and Light: Reverse Transcendence"
+      ],
+      "answer": 0
+    },
+    {
+      "question": "Which one of these manga did NOT run in Weekly Shonen Jump?",
+      "options": [
+        "Fairy Tail",
+        "BLEACH",
+        "To Love-Ru",
+        "Chainsaw Man"
+      ],
+      "answer": 0
+    },
+    {
+      "question": "In Bocchi the Rock!, the name of the band comprised of the 4 main characters—Bocchi, Kita, Nijika, and Ryo—is...",
+      "options": [
+        "HO-KAGO TEATIME",
+        "Detroit Metal City",
+        "Kessoku Band",
+        "SIDEROS"
+      ],
+      "answer": 2
+    },
+    {
+      "question": "Which of these films was directed by Satoshi Kon?",
+      "options": [
+        "Spirited Away",
+        "Tokyo Godfathers",
+        "Kiki’s Delivery Service",
+        "Akira"
+      ],
+      "answer": 1
+    },
+    {
+      "question": "I activate the Continuous Spell “Fire Formation - Tenki”, which allows me to add a Beast-Warrior monster from my deck to my hand. Then, on activation, my opponent chains Mystical Space Typhoon, targeting and destroying my “Fire Formation - Tenki”. What happens?",
+      "options": [
+        "Continuous Spells cannot be destroyed and the effect goes through",
+        "Continuous Spells cannot be destroyed, but Mystical Space Typhoon negates it",
+        "The spell is destroyed, but the effect goes through",
+        "The spell is destroyed and the effect does not go through"
+      ],
+      "answer": 3
+    },
+    {
+      "question": "Which of these anime series was NOT Studio SHAFT’s work?",
+      "options": [
+        "Bakemonogatari",
+        "Mawaru Penguindrum",
+        "March Comes in Like a Lion",
+        "Puella Magi Madoka Magica"
+      ],
+      "answer": 1
+    },
+    {
+      "question": "Which one of these is the ending theme for Ergo Proxy in its original TV run?",
+      "options": [
+        "duvet - bôa",
+        "Kanako Itou - Hacking to the Gate",
+        "Radiohead - Paranoid Android",
+        "Mai Yamane - The Real Folk Blues"
+      ],
+      "answer": 2
+    }
+  ],
   "keywords": {
     "TAUNT": "Enemy attacks target this unit.",
     "SOUL GEM": "Gain 15% Attack, Defense, and Speed. When this unit dies, it becomes a Witch that attacks everyone. Defeat the Witch to win.",
     "MARINE SOLIDARITY": "All stats are increased by 10%.",
-    "WITCH": "Attacks allies and enemies. Both teams can attack the Witch. It must be defeated before either team can win."
+    "WITCH": "Attacks allies and enemies. Both teams can attack the Witch. It must be defeated before either team can win.",
+    "WILD CARD": "Survived the Blue Lock Wild Card program (+50 to all stats). Cannot enter the Wild Card program again."
   }
 }

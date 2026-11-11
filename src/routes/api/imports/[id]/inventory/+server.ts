@@ -8,6 +8,7 @@ const VALID_ACTIONS = [
   'use',
   'catch',
   'replace-catch',
+  'place-wildcard',
   'wish',
   'dismiss-fusion'
 ] as const;

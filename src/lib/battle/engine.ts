@@ -30,7 +30,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   if (
     left.length < 1 ||
     left.length > 7 ||
-    (!isMultiTeam && (right.length !== 5 && !(right.length === 1 && right[0].boss))) ||
+    (!isMultiTeam && (right.length < 1 || right.length > 7)) ||
     (isMultiTeam && allTeams.slice(1).some(t => t.length !== 5))
   ) {
     throw new Error('Autobattles require 1–7 player units and five opponents or one boss.');
@@ -501,12 +501,13 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   settleDuels();
   snapshot();
   const hasSide = (side: number) => units.some((_, i) => sides[i] === side && available(i));
+  const hasWitch = () => units.some((c, i) => !!c.witch && available(i));
   const activeSides = () => {
     let livingTeams = 0;
     for (let s = 0; s < allTeams.length; s++) if (hasSide(s)) livingTeams++;
     return livingTeams;
   };
-  while (!stageWinner && (activeSides() >= 2 || (pendingRevival.size > 0 && activeSides() >= 1))) {
+  while (!stageWinner && (activeSides() >= 2 || (hasWitch() && hasSide(0)) || (pendingRevival.size > 0 && activeSides() >= 1))) {
     for(let i=0;i<count;i++)if(available(i))for(const ability of implementationsFor(units[i]))ability.onUpdate?.(context,i);
     const burnTimes = units.map((_, i) => available(i) ? statuses.nextBurn(i) : Infinity);
     const negationExpiry = Math.min(Infinity, ...statuses.negatedUntil.filter((at, i) => !permanentlyNegated.has(i) && at > time));
@@ -677,11 +678,12 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
   const survivors = Array.from({ length: allTeams.length }, (_, side) =>
     hp.filter((n, i) => n > 0 && sides[i] === side && participating[i]).length
   );
+  const survivingWitches = units.filter((c, i) => !!c.witch && available(i)).length;
   let finalWinner: 'left' | 'right' | 'draw';
   if (stageWinner) {
     finalWinner = stageWinner;
   } else if (isMultiTeam) {
-    if (survivors[0] > 0 && survivors.slice(1).every(s => s === 0)) {
+    if (survivors[0] > 0 && survivors.slice(1).every(s => s === 0) && survivingWitches === 0) {
       finalWinner = 'left';
     } else if (survivors[0] === 0) {
       finalWinner = 'right';
@@ -694,10 +696,10 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
         return max > 0 ? total / max : 0;
       });
       const best = Math.max(...teamHPs);
-      finalWinner = teamHPs[0] === best && teamHPs.filter(h => h === best).length === 1 ? 'left' : 'right';
+      finalWinner = teamHPs[0] === best && teamHPs.filter(h => h === best).length === 1 && survivingWitches === 0 ? 'left' : 'right';
     }
   } else {
-    finalWinner = survivors[0] === 0 && survivors[1] === 0 ? (blastTie ? 'left' : 'draw') : survivors[0] === 0 ? 'right' : survivors[1] === 0 ? 'left' : 'draw';
+    finalWinner = survivors[0] === 0 && survivors[1] === 0 ? (blastTie ? 'left' : 'draw') : survivors[0] === 0 ? 'right' : survivors[1] === 0 && survivingWitches === 0 ? 'left' : 'draw';
   }
   for(let i=0;i<count;i++)if(abilityIds(units[i]).includes(2867)&&casualties[sides[i]]===0&&(units[i].gantzPoints??0)>=100){units[i].gantzPoints!-=100;record(i).gantzPoints=units[i].gantzPoints;addStats(i,30,'GANTZ upgrade',true);}
   const losingSide=finalWinner==='left'?1:finalWinner==='right'?0:-1;

@@ -1,4 +1,4 @@
-export type UnitKeyword = 'TAUNT' | 'LIFESTEAL';
+export type UnitKeyword = 'TAUNT' | 'LIFESTEAL' | 'WILD CARD';
 export type MediaKind = 'anime' | 'manga';
 export type Title = { id: number; kind: MediaKind; name: string; score?: number | null; status: string };
 export type Character = { id: number; name: string; image: string | null; favorites?: number | null; url: string };
@@ -12,6 +12,9 @@ export type Job = {
   arenaWins?: number;
   lives?: number;
   pendingCatch?: JourneyCharacter;
+  pendingWildCard?: JourneyCharacter;
+  wildCardQueue?: { unit: JourneyCharacter; returnFloor: number }[];
+  pendingItemRewards?: number;
   wishCandidates?: PoolCharacter[];
   itemNotice?: string;
   fusionNotice?: boolean;

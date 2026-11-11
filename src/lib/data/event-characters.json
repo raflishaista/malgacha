@@ -388,5 +388,185 @@
         "status": "completed"
       }
     ]
+  },
+  {
+    "id": 38566,
+    "name": "Kyubey",
+    "image": "https://cdn.myanimelist.net/images/characters/6/110705.webp",
+    "favorites": 1644,
+    "url": "https://myanimelist.net/character/38566",
+    "titles": [
+      {
+        "id": 9756,
+        "kind": "anime",
+        "name": "Puella Magi Madoka Magica",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 178715,
+    "name": "Ego, Jinpachi",
+    "image": "https://cdn.myanimelist.net/images/characters/12/498291.webp",
+    "favorites": 251,
+    "url": "https://myanimelist.net/character/178715",
+    "titles": [
+      {
+        "id": 49596,
+        "kind": "anime",
+        "name": "Blue Lock",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 13773,
+    "name": "Migi",
+    "image": "https://cdn.myanimelist.net/images/characters/12/348176.webp",
+    "favorites": 4730,
+    "url": "https://myanimelist.net/character/13773",
+    "titles": [
+      {
+        "id": 22535,
+        "kind": "anime",
+        "name": "Kiseijuu: Sei no Kakuritsu",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 3935,
+    "name": "Jessie",
+    "image": "https://cdn.myanimelist.net/images/characters/4/278096.webp",
+    "favorites": 297,
+    "url": "https://myanimelist.net/character/3935",
+    "titles": [
+      {
+        "id": 527,
+        "kind": "anime",
+        "name": "Pokemon",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 3936,
+    "name": "James",
+    "image": "https://cdn.myanimelist.net/images/characters/8/502950.webp",
+    "favorites": 965,
+    "url": "https://myanimelist.net/character/3936",
+    "titles": [
+      {
+        "id": 527,
+        "kind": "anime",
+        "name": "Pokemon",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 3937,
+    "name": "Meowth",
+    "image": "https://cdn.myanimelist.net/images/characters/11/131981.webp",
+    "favorites": 276,
+    "url": "https://myanimelist.net/character/3937",
+    "titles": [
+      {
+        "id": 527,
+        "kind": "anime",
+        "name": "Pokemon",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 141187,
+    "name": "Wobbuffet",
+    "image": "https://cdn.myanimelist.net/images/characters/5/391861.webp",
+    "favorites": 30,
+    "url": "https://myanimelist.net/character/141187",
+    "titles": [
+      {
+        "id": 527,
+        "kind": "anime",
+        "name": "Pokemon",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 126032,
+    "name": "Oyanagi, Ken",
+    "image": "https://cdn.myanimelist.net/images/characters/8/363817.webp",
+    "favorites": 1,
+    "url": "https://myanimelist.net/character/126032",
+    "titles": [
+      {
+        "id": 31933,
+        "kind": "anime",
+        "name": "JoJo no Kimyou na Bouken Part 4: Diamond wa Kudakenai",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 60009,
+    "name": "Gotoh",
+    "image": "https://cdn.myanimelist.net/images/characters/4/160739.webp",
+    "favorites": 36,
+    "url": "https://myanimelist.net/character/60009",
+    "titles": [
+      {
+        "id": 11061,
+        "kind": "anime",
+        "name": "Hunter x Hunter (2011)",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 27,
+    "name": "Zoldyck, Killua",
+    "image": "https://cdn.myanimelist.net/images/characters/2/327920.webp",
+    "favorites": 102016,
+    "url": "https://myanimelist.net/character/27",
+    "titles": [
+      {
+        "id": 11061,
+        "kind": "anime",
+        "name": "Hunter x Hunter (2011)",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 206970,
+    "name": "Sadakuni, Ikki",
+    "image": "https://cdn.myanimelist.net/images/characters/13/534193.webp",
+    "favorites": 0,
+    "url": "https://myanimelist.net/character/206970",
+    "titles": [
+      {
+        "id": 1982,
+        "kind": "manga",
+        "name": "Usogui",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 3760,
+    "name": "Hasegawa, Taizou",
+    "image": "https://cdn.myanimelist.net/images/characters/5/115541.webp",
+    "favorites": 3303,
+    "url": "https://myanimelist.net/character/3760",
+    "titles": [
+      {
+        "id": 918,
+        "kind": "anime",
+        "name": "Gintama",
+        "status": "completed"
+      }
+    ]
   }
 ]

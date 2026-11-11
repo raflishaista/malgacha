@@ -5,12 +5,21 @@ import {
   eventCharacter,
   MARINE_IDS,
   CAPTIVE_IDS,
-  type EventAction
+  ROCKET_IDS,
+  EVENT_RULES,
+  QUIZ_QUESTIONS,
+  rollRocketBalls,
+  rollGotohSequence,
+  initHangman,
+  stepHangman,
+  type EventAction,
+  type JourneyEvent
 } from '../events';
 import { sample, mergeCast } from '../pool';
 import { rollStage, type StageId } from '../stages';
 import {
   applyInventoryAction,
+  emptySlot,
   inventoryView,
   newUnit,
   randomPoolUnit,
@@ -18,11 +27,11 @@ import {
   type InventoryAction
 } from './inventory';
 import { rewardChoices } from '../items';
-import { starterTeam, opponentTeams, testingStarterTeam, NEW_TESTING_CHARACTERS } from '../journeys';
-import { abilityIds } from '../battle/abilities/catalog';
+import { starterTeam, opponentTeams, testingStarterTeam, NEW_TESTING_CHARACTERS, abilityFor } from '../journeys';
+import { abilityIds, IMPLEMENTED_ABILITIES } from '../battle/abilities';
 import { simulateBattle } from '../battle/engine';
 import { isBossFloor, rollBoss } from '../bosses';
-import { generateBaseStats } from '../stats';
+import { distributeStats, generateBaseStats } from '../stats';
 import { rarityFor } from '../rarity';
 import type { JourneyCharacter, Job, JobView } from '../types';
 import { bestSource, favoriteTotal } from '../match';
@@ -30,6 +39,15 @@ import { titleKey } from '../types';
 import { demoCast, demoTitles } from './demo';
 import { parseUsername, type Providers } from './providers';
 import { Store } from './store';
+
+function rocketUnit(id: number, random: () => number): JourneyCharacter {
+  const values = distributeStats({ bst: EVENT_RULES.rocketBst, min: 95, max: 235 }, 4, random);
+  return {
+    ...newUnit(eventCharacter(id), random),
+    statRarity: 'UR',
+    baseStats: { hp: values[0], attack: values[1], defense: values[2], speed: values[3] }
+  };
+}
 
 const ACTIVE_STATES = new Set(['queued', 'listing', 'fetching']);
 
@@ -155,12 +173,39 @@ export class Engine {
     });
   }
 
+  private prepareEventMetadata(job: Job, event: JourneyEvent, random: () => number) {
+    const team = (job.starterTeam ?? []) as JourneyCharacter[];
+    const living = team.filter((c) => !c.empty);
+
+    if (event.id === 'marine' && !event.previewTeam) {
+      event.previewTeam = sample(MARINE_IDS, 5, random).map((id) => ({
+        ...newUnit(eventCharacter(id), random),
+        marine: true
+      }));
+    } else if (event.id === 'parasyte' && !event.targetUnitId && living.length > 0) {
+      const target = living[Math.floor(random() * living.length)];
+      event.targetUnitId = target.instanceId;
+      event.targetUnitName = target.name;
+      event.targetUnitImage = target.image;
+    } else if (event.id === 'rocket') {
+      if (!event.targetUnitId && living.length > 0) {
+        const target = living[Math.floor(random() * living.length)];
+        event.targetUnitId = target.instanceId;
+        event.targetUnitName = target.name;
+        event.targetUnitImage = target.image;
+      }
+      if (!event.previewTeam) {
+        event.previewTeam = ROCKET_IDS.map((rid) => rocketUnit(rid, random));
+      }
+    }
+  }
+
   async journeyOpponents(
     id: string
   ): Promise<{
     teams: JourneyCharacter[][];
     stage?: StageId;
-    events?: (import('../events').JourneyEvent | null)[];
+    events?: (JourneyEvent | null)[];
   }> {
     await this.init();
     return this.serialize(async () => {
@@ -173,6 +218,9 @@ export class Engine {
       }
       if (job.pendingCatch) {
         throw new Error('Place your caught unit before continuing.');
+      }
+      if (job.pendingWildCard) {
+        throw new Error('Place your returning Wild Card unit before continuing.');
       }
       if (!job.starterTeam.some((c) => !('empty' in c && c.empty))) {
         throw new Error('Your team is empty. Use the testing team reroll to continue.');
@@ -207,10 +255,15 @@ export class Engine {
         })
       );
 
+      const events = rollEvents(random);
+      for (const ev of events) {
+        if (ev) this.prepareEventMetadata(job, ev, random);
+      }
+
       job.encounter = {
         teams,
         stage: rollStage(random),
-        events: rollEvents(random)
+        events
       };
 
       await this.store.saveJob(job);
@@ -349,18 +402,21 @@ export class Engine {
           throw new Error('Choose an opponent.');
         }
 
+        const isAlcatrazRoyale = encounter.stage === 'alcatraz' && encounter.teams.length >= 3;
         const event = encounter.events?.[opponent!];
-        if (event && event.status !== 'battle' && !encounter.result) {
-          throw new Error('This event has no battle ready.');
-        }
-        if (encounter.selected !== undefined && encounter.selected !== opponent) {
-          throw new Error('This pathway is already selected.');
-        }
-        if (event && !['battle', 'reward', 'complete'].includes(event.status)) {
-          throw new Error('Choose an event option first.');
-        }
-        if (event?.id === 'creature') {
-          throw new Error('This event has no battle.');
+        if (!isAlcatrazRoyale) {
+          if (event && event.status !== 'battle' && !encounter.result) {
+            throw new Error('This event has no battle ready.');
+          }
+          if (encounter.selected !== undefined && encounter.selected !== opponent) {
+            throw new Error('This pathway is already selected.');
+          }
+          if (event && !['battle', 'reward', 'complete'].includes(event.status)) {
+            throw new Error('Choose an event option first.');
+          }
+          if (event && !['marine', 'parasyte', 'rocket'].includes(event.id)) {
+            throw new Error('This event has no battle.');
+          }
         }
 
         if (!encounter.result) {
@@ -423,8 +479,32 @@ export class Engine {
             if (winner === 'left') {
               this.advanceFloor(job);
               if (event?.id === 'marine') {
-                event.reward = newUnit(eventCharacter(CAPTIVE_IDS[randomInt(CAPTIVE_IDS.length)]));
+                event.reward = newUnit(
+                  eventCharacter(CAPTIVE_IDS[randomInt(CAPTIVE_IDS.length)]),
+                  random
+                );
                 event.status = 'reward';
+                event.outcome = 'won';
+                event.quote = '“Gah… The Marines won’t forget this…”';
+                event.message = `You got ${event.reward.name}!`;
+                encounter.rewardUsed = true;
+              } else if (event?.id === 'parasyte') {
+                event.status = 'complete';
+                event.outcome = 'won';
+                event.quote = '“G-gaah…”';
+                event.message = `${event.targetUnitName ?? 'The unit'} was slain.`;
+                encounter.rewardUsed = true;
+              } else if (event?.id === 'rocket') {
+                const balls = rollRocketBalls(EVENT_RULES.rocketBalls, random);
+                job.inventory ??= [];
+                for (const ball of balls) {
+                  job.inventory.push({ instanceId: randomUUID(), itemId: ball });
+                }
+                event.ballsReward = balls;
+                event.status = 'complete';
+                event.outcome = 'won';
+                event.quote = '“Team Rocket’s blasting off agaaaaain!”';
+                event.message = `You protected ${event.targetUnitName ?? 'your unit'} and won 10 Poké Balls!`;
                 encounter.rewardUsed = true;
               }
             }
@@ -446,11 +526,40 @@ export class Engine {
             : encounter.result.left < encounter.result.right;
 
           if (lost) {
-            job.lives = Math.max(0, (job.lives ?? 3) - 1);
-            if (job.lives === 0) {
-              this.resetRun(job);
-              encounter.gameOver = true;
-              job.encounter = encounter;
+            if (event?.id === 'rocket') {
+              const team = job.starterTeam as JourneyCharacter[];
+              const stolenIdx = team.findIndex((c) => c.instanceId === event.targetUnitId);
+              if (stolenIdx >= 0) {
+                team[stolenIdx] = emptySlot();
+              }
+              event.outcome = 'lost';
+              event.quote = '“Boss’ll be happy with this one!”';
+              event.message = `${event.targetUnitName ?? 'Your unit'} was stolen by Team Rocket!`;
+              this.advanceFloor(job);
+              if (!team.some((c) => !c.empty)) {
+                job.lives = Math.max(0, (job.lives ?? 3) - 1);
+                if (job.lives === 0) {
+                  this.resetRun(job);
+                  encounter.gameOver = true;
+                  job.encounter = encounter;
+                }
+              }
+            } else {
+              if (event?.id === 'marine') {
+                event.outcome = 'lost';
+                event.quote = '“Pirate scum! Take them into custody!”';
+                event.message = 'Lose 1 life.';
+              } else if (event?.id === 'parasyte') {
+                event.outcome = 'lost';
+                event.quote = '“Sustenance…”';
+                event.message = 'Lose 1 life.';
+              }
+              job.lives = Math.max(0, (job.lives ?? 3) - 1);
+              if (job.lives === 0) {
+                this.resetRun(job);
+                encounter.gameOver = true;
+                job.encounter = encounter;
+              }
             }
           }
         }
@@ -465,6 +574,7 @@ export class Engine {
         arenaWins: job.arenaWins ?? 0,
         inventory: job.inventory ?? [],
         itemReward: job.itemReward ?? null,
+        pendingWildCard: job.pendingWildCard ?? null,
         characters: job.starterTeam,
         encounter: job.encounter,
         rewardUsed: Boolean(encounter.rewardUsed)
@@ -472,21 +582,47 @@ export class Engine {
     });
   }
 
+  private grantItemReward(job: Job, count = 1) {
+    for (let i = 0; i < count; i++) {
+      if (!job.itemReward) {
+        job.itemReward = {
+          id: randomUUID(),
+          choices: rewardChoices(job.inventory ?? [], () => randomInt(0, 2 ** 32) / 2 ** 32)
+        };
+      } else {
+        job.pendingItemRewards = (job.pendingItemRewards ?? 0) + 1;
+      }
+    }
+  }
+
+  private checkWildCardReturns(job: Job) {
+    if (job.pendingWildCard || !job.wildCardQueue?.length) return;
+    const idx = job.wildCardQueue.findIndex((entry) => entry.returnFloor <= (job.arenaWins ?? 0));
+    if (idx >= 0) {
+      job.pendingWildCard = job.wildCardQueue.splice(idx, 1)[0].unit;
+      if (job.wildCardQueue.length === 0) delete job.wildCardQueue;
+    }
+  }
+
   private advanceFloor(job: Job) {
     job.arenaWins = (job.arenaWins ?? 0) + 1;
     if (job.arenaWins % 4 === 0) {
-      job.itemReward = {
-        id: randomUUID(),
-        choices: rewardChoices(job.inventory ?? [], () => randomInt(0, 2 ** 32) / 2 ** 32)
-      };
+      this.grantItemReward(job, 1);
     }
+    this.checkWildCardReturns(job);
   }
 
   async journeyEvent(id: string, action: EventAction) {
     await this.init();
     return this.serialize(async () => {
       const job = await this.store.getJob(id);
-      if (!job || job.scope !== 'journeys' || !job.starterTeam || !job.encounter || job.encounter.gameOver) {
+      if (
+        !job ||
+        job.scope !== 'journeys' ||
+        !job.starterTeam ||
+        !job.encounter ||
+        job.encounter.gameOver
+      ) {
         throw new Error('Depart before choosing an event.');
       }
 
@@ -503,61 +639,451 @@ export class Engine {
       }
 
       const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
+      const team = job.starterTeam as JourneyCharacter[];
+      this.prepareEventMetadata(job, event, random);
 
       if (event.status === 'choice') {
+        // Allow picking a target directly on the initial screen for Ego's Wild Card
+        if (event.id === 'wildcard' && action.target) {
+          const index = team.findIndex(
+            (c) =>
+              c.instanceId === action.target &&
+              !c.empty &&
+              !c.keywords?.includes('WILD CARD')
+          );
+          if (index < 0) {
+            throw new Error('Choose an eligible team member without Wild Card.');
+          }
+          encounter.selected = action.index;
+          event.targetUnitId = team[index].instanceId;
+          event.targetUnitName = team[index].name;
+          event.targetUnitImage = team[index].image;
+          event.quote =
+            '“If I were you, I’d be kicking that trash out.”\n“However… they still have a chance to return to your team if they get ahold of the ‘Wild Card’ in my Blue Lock program. I’ll offer you and that one a chance.”';
+          event.status = 'confirm';
+          await this.store.saveJob(job);
+          return inventoryView(job);
+        }
+
         if (!['yes', 'no'].includes(action.choice ?? '')) {
           throw new Error('Choose Yes or No.');
+        }
+
+        if (action.choice === 'no' && ['parasyte', 'rocket'].includes(event.id)) {
+          throw new Error('This event cannot be declined.');
         }
 
         encounter.selected = action.index;
 
         if (action.choice === 'no') {
           event.status = 'complete';
+          event.outcome = 'declined';
+          if (event.id === 'creature') {
+            event.message =
+              'You hear and see guns shooting toward Kyubey. A black-haired girl warns you, “Stay away from that thing.” Then, she disappears.';
+          } else if (event.id === 'marine') {
+            event.message = 'You decide to leave.';
+            event.quote = '“From now on, we hereby declare the execution of…”';
+          } else if (event.id === 'wildcard') {
+            event.quote = '“I see. Don’t blame me if they’re deadweight later on.”';
+          } else if (event.id === 'janken') {
+            event.message = 'You decline the boy’s challenge and continue walking through Morioh.';
+          } else if (event.id === 'gotoh') {
+            event.message = 'You decide not to pursue Killua and leave the Zoldyck estate.';
+          } else if (event.id === 'hangman') {
+            event.message = 'You refuse Sadakuni’s Kakerou gamble.';
+          } else if (event.id === 'madao') {
+            event.quote = '“You might need that money, you know?”';
+          }
           this.advanceFloor(job);
         } else if (event.id === 'creature') {
-          const eligible = (job.starterTeam as JourneyCharacter[]).some(
-            (c) => !c.empty && !c.soulGem
-          );
+          const eligible = team.some((c) => !c.empty && !c.soulGem);
           if (!eligible) {
             throw new Error('No units are eligible for a Soul Gem. Choose No to continue.');
           }
           event.status = 'target';
-        } else {
-          encounter.teams[action.index] = sample(MARINE_IDS, 5, random).map((id) => ({
-            ...newUnit(eventCharacter(id), random),
-            marine: true
-          }));
+        } else if (event.id === 'marine') {
+          encounter.teams[action.index] =
+            event.previewTeam ??
+            sample(MARINE_IDS, 5, random).map((mid) => ({
+              ...newUnit(eventCharacter(mid), random),
+              marine: true
+            }));
           delete encounter.stage;
           event.status = 'battle';
-        }
-      } else if (event.status === 'target' || event.status === 'reward') {
-        const team = job.starterTeam as JourneyCharacter[];
-        const index = team.findIndex(
-          (c) =>
-            c.instanceId === action.target &&
-            (event.status === 'reward' || (!c.empty && !c.soulGem))
-        );
-        if (index < 0) {
-          throw new Error('Choose an eligible team slot.');
-        }
+        } else if (event.id === 'wildcard') {
+          const eligible = team.some((c) => !c.empty && !c.keywords?.includes('WILD CARD'));
+          if (!eligible) {
+            throw new Error('No units are eligible for the Wild Card program. Choose No to continue.');
+          }
+          event.status = 'target';
+        } else if (event.id === 'parasyte') {
+          const livingIndices = team.flatMap((c, i) => (!c.empty ? [i] : []));
+          if (!livingIndices.length) {
+            throw new Error('No living units on your team.');
+          }
+          let targetIdx = team.findIndex(
+            (c) => c.instanceId === event.targetUnitId && !c.empty
+          );
+          if (targetIdx < 0) {
+            targetIdx = livingIndices[Math.floor(random() * livingIndices.length)];
+          }
+          const target = team[targetIdx];
+          event.targetUnitId = target.instanceId;
+          event.targetUnitName = target.name;
+          event.targetUnitImage = target.image;
 
-        if (event.status === 'target') {
-          team[index].soulGem = true;
+          if (random() < 0.5) {
+            target.extraAbilities = [...new Set([...(target.extraAbilities ?? []), 12323])];
+            if (target.removedAbilities) {
+              target.removedAbilities = target.removedAbilities.filter((a) => a !== 12323);
+            }
+            event.status = 'complete';
+            event.outcome = 'won';
+            event.quote = '“Ah… I failed…”';
+            event.message = `${target.name} gets Migi!`;
+            this.advanceFloor(job);
+          } else {
+            const parasyteFoe: JourneyCharacter = {
+              ...structuredClone(target),
+              instanceId: randomUUID(),
+              baseStats: {
+                hp: target.baseStats.hp + EVENT_RULES.parasyteStatBoost,
+                attack: target.baseStats.attack + EVENT_RULES.parasyteStatBoost,
+                defense: target.baseStats.defense + EVENT_RULES.parasyteStatBoost,
+                speed: target.baseStats.speed + EVENT_RULES.parasyteStatBoost
+              }
+            };
+            if (livingIndices.length > 1) {
+              team[targetIdx] = emptySlot();
+            }
+            encounter.teams[action.index] = [parasyteFoe];
+            delete encounter.stage;
+            event.status = 'battle';
+          }
+        } else if (event.id === 'rocket') {
+          encounter.teams[action.index] =
+            event.previewTeam ?? ROCKET_IDS.map((rid) => rocketUnit(rid, random));
+          delete encounter.stage;
+          event.status = 'battle';
+        } else if (event.id === 'janken') {
+          event.status = 'play';
+        } else if (event.id === 'gotoh') {
+          const seq = rollGotohSequence(random);
+          event.gotohPasses = seq.passes;
+          event.gotohAnswer = seq.answer;
+          event.status = 'play';
+        } else if (event.id === 'hangman') {
+          const game = initHangman(random);
+          event.hangmanPlayerHand = game.playerHand;
+          event.hangmanEnemyHand = game.enemyHand;
+          event.hangmanEnemyCount = game.enemyHand.length;
+          event.hangmanLog = game.log;
+          if (game.winner === 'won') {
+            event.status = 'complete';
+            event.outcome = 'won';
+            event.quote = '“As if I could die at a place like this! Dammit!”';
+            event.message = 'You got the wagered money! Gain 3 items.';
+            this.grantItemReward(job, 3);
+            this.advanceFloor(job);
+          } else if (game.winner === 'lost') {
+            this.executeRandomUnit(team, event, random);
+            event.status = 'complete';
+            event.outcome = 'lost';
+            event.quote = '“This is your destiny.”';
+            event.message = `${event.targetUnitName ?? 'Your unit'} was executed!`;
+            this.advanceFloor(job);
+          } else {
+            event.status = 'play';
+          }
+        } else if (event.id === 'madao') {
+          event.quizIndex = Math.min(
+            QUIZ_QUESTIONS.length - 1,
+            Math.floor(random() * QUIZ_QUESTIONS.length)
+          );
+          event.status = 'play';
+        }
+      } else if (event.status === 'confirm' && event.id === 'wildcard') {
+        if (!['yes', 'no'].includes(action.choice ?? '')) {
+          throw new Error('Choose Yes or No.');
+        }
+        if (action.choice === 'no') {
+          event.status = 'complete';
+          event.outcome = 'declined';
+          event.quote = '“I see. Don’t blame me if they’re deadweight later on.”';
           this.advanceFloor(job);
         } else {
-          if (!event.reward) throw new Error('Reward missing.');
-          team[index] = event.reward;
-          delete event.reward;
+          const index = team.findIndex(
+            (c) =>
+              c.instanceId === event.targetUnitId &&
+              !c.empty &&
+              !c.keywords?.includes('WILD CARD')
+          );
+          if (index < 0) {
+            throw new Error('Selected unit is no longer eligible.');
+          }
+          const boosted = structuredClone(team[index]);
+          boosted.permanentBoosts = {
+            hp: (boosted.permanentBoosts?.hp ?? 0) + EVENT_RULES.wildCardStatBoost,
+            attack: (boosted.permanentBoosts?.attack ?? 0) + EVENT_RULES.wildCardStatBoost,
+            defense: (boosted.permanentBoosts?.defense ?? 0) + EVENT_RULES.wildCardStatBoost,
+            speed: (boosted.permanentBoosts?.speed ?? 0) + EVENT_RULES.wildCardStatBoost
+          };
+          boosted.keywords = [...new Set([...(boosted.keywords ?? []), 'WILD CARD' as const])];
+          team[index] = emptySlot();
+          const returnFloor = (job.arenaWins ?? 0) + EVENT_RULES.wildCardFloors;
+          job.wildCardQueue ??= [];
+          job.wildCardQueue.push({
+            unit: boosted,
+            returnFloor
+          });
+          this.advanceFloor(job);
+          event.status = 'complete';
+          event.outcome = 'accepted';
+          event.quote = '“Looks like they have a will. They’ll be back.”';
+          event.message = `${boosted.name} entered the Blue Lock Wild Card program and will return in 5 floors.`;
         }
+      } else if (event.status === 'play') {
+        if (event.id === 'janken') {
+          if (!action.janken) throw new Error('Choose Rock, Paper, or Scissors.');
+          const choices = ['rock', 'paper', 'scissors'] as const;
+          const aiChoice = choices[Math.floor(random() * choices.length)];
+          if (action.janken !== 'timeout') {
+            event.jankenPlayer = action.janken;
+            event.jankenEnemy = aiChoice;
+          }
+          if (action.janken !== 'timeout' && action.janken === aiChoice) {
+            event.jankenTie = true;
+            event.message = `Both chose ${action.janken.toUpperCase()}! It’s a tie — choose again!`;
+          } else {
+            event.jankenTie = false;
+            const won =
+              action.janken !== 'timeout' &&
+              ((action.janken === 'rock' && aiChoice === 'scissors') ||
+                (action.janken === 'paper' && aiChoice === 'rock') ||
+                (action.janken === 'scissors' && aiChoice === 'paper'));
 
-        event.status = 'complete';
+            if (won) {
+              const abilityId =
+                IMPLEMENTED_ABILITIES[
+                  Math.min(
+                    IMPLEMENTED_ABILITIES.length - 1,
+                    Math.floor(random() * IMPLEMENTED_ABILITIES.length)
+                  )
+                ];
+              const abilityName = abilityFor(abilityId)?.title ?? String(abilityId);
+              event.abilityId = abilityId;
+              event.abilityName = abilityName;
+              event.outcome = 'won';
+              event.quote = '“Waah!”';
+              event.message = `You won! Choose a unit on your team to receive ${abilityName}.`;
+              event.status = 'target';
+            } else {
+              const holders = team.filter((c) => !c.empty && abilityIds(c).length > 0);
+              if (holders.length > 0) {
+                const victim = holders[Math.floor(random() * holders.length)];
+                const ids = abilityIds(victim);
+                const stolenId = ids[Math.floor(random() * ids.length)];
+                if (victim.extraAbilities?.includes(stolenId)) {
+                  victim.extraAbilities = victim.extraAbilities.filter((a) => a !== stolenId);
+                }
+                if (victim.id === stolenId) {
+                  victim.removedAbilities = [
+                    ...new Set([...(victim.removedAbilities ?? []), stolenId])
+                  ];
+                }
+                const stolenName = abilityFor(stolenId)?.title ?? String(stolenId);
+                event.targetUnitId = victim.instanceId;
+                event.targetUnitName = victim.name;
+                event.targetUnitImage = victim.image;
+                event.abilityName = stolenName;
+                event.outcome = action.janken === 'timeout' ? 'timeout' : 'lost';
+                event.quote = `“I won! I’ll be taking ${stolenName} from ${victim.name}!”`;
+                event.message = `${victim.name} gets ${stolenName} taken!`;
+              } else {
+                event.outcome = action.janken === 'timeout' ? 'timeout' : 'lost';
+                event.quote = '“W-what the heck?! That’s cheating!”';
+                event.message = 'Your team has no abilities to take!';
+              }
+              event.status = 'complete';
+              this.advanceFloor(job);
+            }
+          }
+        } else if (event.id === 'gotoh') {
+          if (!action.butler) throw new Error('Choose a butler.');
+          if (action.butler === 'timeout') {
+            event.status = 'complete';
+            event.outcome = 'timeout';
+            event.quote = `“Time’s out. The coin was on ${event.gotohAnswer}. Out.”`;
+            event.message = 'You ran out of time.';
+            this.advanceFloor(job);
+          } else if (action.butler === event.gotohAnswer) {
+            event.reward = newUnit(eventCharacter(27), random);
+            event.status = 'reward';
+            event.outcome = 'won';
+            event.quote = '“Correct. Please look after Master Killua.”';
+            event.message = 'You got Killua!';
+            encounter.rewardUsed = true;
+          } else {
+            event.status = 'complete';
+            event.outcome = 'lost';
+            event.quote = `“Wrong. The coin was on ${event.gotohAnswer}. Out.”`;
+            event.message = 'You didn’t answer correctly.';
+            this.advanceFloor(job);
+          }
+        } else if (event.id === 'hangman') {
+          if (action.cardIndex === undefined) throw new Error('Draw a card.');
+          if (action.cardIndex === 'timeout') {
+            event.status = 'complete';
+            event.outcome = 'timeout';
+            event.message = 'The game ends with no winner.';
+            this.advanceFloor(job);
+          } else {
+            const step = stepHangman(
+              event.hangmanPlayerHand ?? [],
+              event.hangmanEnemyHand ?? [],
+              action.cardIndex,
+              random
+            );
+            event.hangmanPlayerHand = step.playerHand;
+            event.hangmanEnemyHand = step.enemyHand;
+            event.hangmanEnemyCount = step.enemyHand.length;
+            event.hangmanLog = step.log;
+
+            if (step.winner === 'won') {
+              event.status = 'complete';
+              event.outcome = 'won';
+              event.quote = '“As if I could die at a place like this! Dammit!”';
+              event.message = 'You got the wagered money! Gain 3 items.';
+              this.grantItemReward(job, 3);
+              this.advanceFloor(job);
+            } else if (step.winner === 'lost') {
+              this.executeRandomUnit(team, event, random);
+              event.status = 'complete';
+              event.outcome = 'lost';
+              event.quote = '“This is your destiny.”';
+              event.message = `${event.targetUnitName ?? 'Your unit'} was executed!`;
+              this.advanceFloor(job);
+            }
+          }
+        } else if (event.id === 'madao') {
+          if (action.answer === undefined) throw new Error('Choose an answer.');
+          const q = QUIZ_QUESTIONS[event.quizIndex ?? 0];
+          if (action.answer === 'timeout') {
+            event.status = 'complete';
+            event.outcome = 'timeout';
+            event.message = 'Time’s up.';
+            this.advanceFloor(job);
+          } else if (action.answer === q.answer) {
+            event.status = 'complete';
+            event.outcome = 'won';
+            event.message = 'Correct! You get 10 million! (One item)';
+            event.quote = '“Don’t just change the prize!”';
+            this.grantItemReward(job, 1);
+            this.advanceFloor(job);
+          } else {
+            event.status = 'complete';
+            event.outcome = 'lost';
+            event.message = 'Wrong. You don’t get anything.';
+            event.quote = '“There’s more debt?!”';
+            this.advanceFloor(job);
+          }
+        }
+      } else if (event.status === 'target' || event.status === 'reward') {
+        if (event.status === 'target' && event.id === 'wildcard') {
+          const index = team.findIndex(
+            (c) =>
+              c.instanceId === action.target &&
+              !c.empty &&
+              !c.keywords?.includes('WILD CARD')
+          );
+          if (index < 0) {
+            throw new Error('Choose an eligible team slot.');
+          }
+          event.targetUnitId = team[index].instanceId;
+          event.targetUnitName = team[index].name;
+          event.targetUnitImage = team[index].image;
+          event.quote =
+            '“If I were you, I’d be kicking that trash out.”\n“However… they still have a chance to return to your team if they get ahold of the ‘Wild Card’ in my Blue Lock program. I’ll offer you and that one a chance.”';
+          event.status = 'confirm';
+        } else if (event.status === 'target' && event.id === 'janken') {
+          const index = team.findIndex((c) => c.instanceId === action.target && !c.empty);
+          if (index < 0) {
+            throw new Error('Choose an eligible team slot.');
+          }
+          const unit = team[index];
+          if (event.abilityId !== undefined) {
+            unit.extraAbilities = [...new Set([...(unit.extraAbilities ?? []), event.abilityId])];
+            if (unit.removedAbilities) {
+              unit.removedAbilities = unit.removedAbilities.filter((a) => a !== event.abilityId);
+            }
+          }
+          event.targetUnitName = unit.name;
+          event.targetUnitImage = unit.image;
+          event.quote = '“Waah!”';
+          event.message = `${unit.name} got ${event.abilityName}!`;
+          event.status = 'complete';
+          this.advanceFloor(job);
+        } else {
+          const index = team.findIndex(
+            (c) =>
+              c.instanceId === action.target &&
+              (event.status === 'reward' || (!c.empty && !c.soulGem))
+          );
+          if (index < 0) {
+            throw new Error('Choose an eligible team slot.');
+          }
+
+          if (event.status === 'target') {
+            team[index].soulGem = true;
+            event.targetUnitName = team[index].name;
+            event.targetUnitImage = team[index].image;
+            event.quote = `“Great! ${team[index].name} will become a Magical Girl!”`;
+            event.message = `${team[index].name} gains the Soul Gem keyword.`;
+            event.outcome = 'accepted';
+            this.advanceFloor(job);
+          } else {
+            if (!event.reward) throw new Error('Reward missing.');
+            const rewarded = event.reward;
+            team[index] = rewarded;
+            delete event.reward;
+            event.targetUnitName = rewarded.name;
+            event.targetUnitImage = rewarded.image;
+            if (event.id === 'gotoh') {
+              event.quote = '“Correct. Please look after Master Killua.”';
+              event.message = 'You got Killua!';
+              this.advanceFloor(job);
+            } else {
+              event.quote = '“Gah… The Marines won’t forget this…”';
+              event.message = `You got ${rewarded.name}!`;
+            }
+          }
+
+          event.status = 'complete';
+        }
       } else {
-        throw new Error('Fight the Marines to finish this event.');
+        throw new Error('Fight the enemies to finish this event.');
       }
 
       await this.store.saveJob(job);
       return inventoryView(job);
     });
+  }
+
+  private executeRandomUnit(
+    team: JourneyCharacter[],
+    event: JourneyEvent,
+    random: () => number
+  ) {
+    const livingIndices = team.flatMap((c, i) => (!c.empty ? [i] : []));
+    if (livingIndices.length > 0) {
+      const victimIdx = livingIndices[Math.floor(random() * livingIndices.length)];
+      const victim = team[victimIdx];
+      event.targetUnitId = victim.instanceId;
+      event.targetUnitName = victim.name;
+      event.targetUnitImage = victim.image;
+      team[victimIdx] = emptySlot();
+    }
   }
 
   private resetRun(job: Job) {
@@ -567,7 +1093,10 @@ export class Engine {
     job.arenaWins = 0;
     job.inventory = [];
     delete job.itemReward;
+    delete job.pendingItemRewards;
     delete job.pendingCatch;
+    delete job.pendingWildCard;
+    delete job.wildCardQueue;
     delete job.itemNotice;
     delete job.fusionNotice;
     delete job.wishCandidates;
