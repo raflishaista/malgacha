@@ -38,8 +38,8 @@ it('Geass makes an enemy attack its own team for five seconds',()=>{
 it('Jotaro stops time more frequently for a shorter period than Dio',()=>{
  const j=match(4003),d=match(4004);expect(j.stops![0].start).toBe(7);expect(j.stops![0].end-j.stops![0].start).toBe(1.5);expect(d.stops![0].start).toBe(10);
 });
-it('Goku gets +40 all stats at half HP while Vegeta records a permanent +5 at ten percent',()=>{
- for(const [id,hp,bonus] of [[246,200,40],[913,260,5]]){const left=team(),right=team(910000);left[0].id=id;left[0].baseStats.hp=hp;left[0].keywords=['TAUNT'];const b=simulateBattle(left,right,()=>.1);expect(b.events.some(e=>e.attacker===0&&e.ability===(id===246?'Super Saiyan':'Zenkai Boost'))).toBe(true);if(id===913)expect(b.updates![left[0].instanceId].permanentBoosts).toEqual({hp:bonus,attack:bonus,defense:bonus,speed:bonus});}
+it('Goku gets +40 all stats at half HP while Vegeta records a permanent +5 on death',()=>{
+ for(const [id,hp,bonus] of [[246,200,40],[913,1,5]]){const left=team(),right=team(910000);left[0].id=id;left[0].baseStats.hp=hp;left[0].keywords=['TAUNT'];const b=simulateBattle(left,right,()=>.1);expect(b.events.some(e=>e.attacker===0&&e.ability===(id===246?'Super Saiyan':'Zenkai Boost'))).toBe(true);if(id===913)expect(b.updates![left[0].instanceId].permanentBoosts).toEqual({hp:bonus,attack:bonus,defense:bonus,speed:bonus});}
 });
 it('Oguri gains fourfold Speed after three activations',()=>{
  const left=team(),right=team(910000);left[0].id=162150;left[1].extraAbilities=[22036];const b=simulateBattle(left,right,()=>.1);expect(b.frames!.some(f=>f.speed[0]===500)).toBe(true);
@@ -56,15 +56,15 @@ it('Simon absorbs allies, gains +50 per ally and inherits their first two passiv
 it('Spike replaces only four initial allies with 620 BST Bebop crew members',()=>{
  const left=[...team(),unit(920000)],right=team(910000);left[0].id=1;const b=simulateBattle(left,right,()=>.1),f=b.frames![0];expect([1,2,3,4].map(i=>f.unitOverrides![i].id)).toEqual([2,3,4,16]);expect([1,2,3,4].every(i=>statTotal(f.unitOverrides![i].baseStats!)===620)).toBe(true);expect(f.unitOverrides?.[5]).toBeUndefined();
 });
-it('Shigeo counts at six points per second and gains +50 all stats at 100',()=>{
- const b=match(109929);expect(b.frames!.find(f=>f.time===1)!.counters![0].value).toBe(6);const f=b.frames!.find(f=>f.counters?.[0]?.value===100)!;expect(f.time).toBe(17);expect(f.speed[0]).toBe(175);
+it('Shigeo counts steadily up to 100% and gains +50 all stats at 100',()=>{
+ const b=match(109929);const f1=b.frames!.find(f=>Math.abs(f.time-1)<.05)!;expect(f1.counters![0].value).toBe(6);const f=b.frames!.find(f=>f.counters?.[0]?.value===100)!;expect(Math.round(f.time)).toBe(17);expect(f.speed[0]).toBe(175);
 });
 it('Asta triples damage against configured magic series; Utena also recognizes Soul Gems',()=>{
  expect(MAGIC_SERIES).toEqual(expect.arrayContaining(['black clover','magi','cardcaptor sakura','little witch academia','ao no exorcist']));
  for(const id of [124731,193067]){const left=team(),right=team(910000);left[0].id=id;right.forEach(c=>{if(id===124731)c.titles=[{id:1,name:'Black Clover',kind:'anime',status:'watching'}];else c.soulGem=true;});const b=simulateBattle(left,right,()=>.1);expect(b.events.find(e=>e.attacker===0&&!e.kind)!.damage).toBeGreaterThan(65);}
 });
-it('Yugi can summon Mahad and Slifer only once each with the configured BST',()=>{
- for(const [roll,id,bst] of [[.3,142840,540],[.99,-3100,650]] as const){const b=match(1374,()=>roll);const summons=b.units.filter(u=>u.id===id);expect(summons).toHaveLength(1);expect(statTotal(summons[0].baseStats)).toBe(bst);expect(b.events.some(e=>e.ability===(id===142840?'Dark Magic Curtain':'Slifer the Sky Dragon'))).toBe(true);}
+it('Yugi can summon Mahado and Slifer only once each with the configured BST',()=>{
+ for(const [roll,id,bst] of [[.2,26722,540],[.04,-3100,650]] as const){const b=match(1374,()=>roll);const summons=b.units.filter(u=>u.id===id);expect(summons).toHaveLength(1);expect(statTotal(summons[0].baseStats)).toBe(bst);expect(b.events.some(e=>e.ability===(id===26722?'Dark Magic Curtain':'Slifer the Sky Dragon'))).toBe(true);}
 });
 it('Ippo dodges and gains +15 Speed; Hakari reveals one digit per second and grants +77 on jackpot',()=>{
  const left=team(),right=team(910000);left[0].id=15;left[0].keywords=['TAUNT'];let b=simulateBattle(left,right,()=>0);expect(b.events.some(e=>e.ability==='Dempsey Roll')).toBe(true);expect(b.frames!.some(f=>f.speed[0]>=140)).toBe(true);

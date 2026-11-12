@@ -10,7 +10,9 @@ const VALID_ACTIONS = [
   'replace-catch',
   'place-wildcard',
   'wish',
-  'dismiss-fusion'
+  'dismiss-fusion',
+  'reroll-reward',
+  'reroll-stage'
 ] as const;
 
 export const GET: RequestHandler = async ({ params }) => {

@@ -21,6 +21,7 @@
     onchoice,
     ontarget,
     onaction,
+    onbattle,
     onclose
   }: {
     event: JourneyEvent;
@@ -30,6 +31,7 @@
     onchoice: (choice: 'yes' | 'no') => void;
     ontarget: (id: string) => void;
     onaction?: (action: Omit<EventAction, 'index'>) => void;
+    onbattle?: () => void;
     onclose: () => void;
   } = $props();
 
@@ -48,9 +50,12 @@
     characterIds?: number[];
   });
 
-  const leadCharacter = $derived(
-    eventDef.characterId ? eventCharacter(eventDef.characterId) : null
-  );
+  const leadCharacter = $derived.by(() => {
+    if (event.id === 'akina' && event.akinaOpponent) {
+      return eventCharacter(event.akinaOpponent);
+    }
+    return eventDef.characterId ? eventCharacter(eventDef.characterId) : null;
+  });
 
   const previewUnits = $derived.by(() => {
     if (event.previewTeam?.length) return event.previewTeam;
@@ -59,7 +64,7 @@
     return [];
   });
 
-  // Gotoh Coin Test flashing sequence + 5s timer
+  // Gotoh Coin Test flashing sequence + 5s timer (0.5s per pass)
   let gotohStep = $state(0);
   let gotohGuessing = $state(false);
   let gotohRemainingMs = $state(5000);
@@ -79,11 +84,54 @@
             gotohGuessing = true;
             clearInterval(interval);
           }
-        }, 1000);
+        }, 500);
         return () => clearInterval(interval);
       }
     }
   });
+
+  // Mount Akina Downhill speed race animation
+  let akinaElapsed = $state(0);
+  let akinaFinished = $state(false);
+  let akinaClosed = $state(false);
+
+  $effect(() => {
+    if (event.id === 'akina' && event.akinaTime !== undefined && !akinaFinished) {
+      akinaElapsed = 0;
+      akinaFinished = false;
+      const start = performance.now();
+      const duration = 4000;
+      const interval = setInterval(() => {
+        const elapsed = performance.now() - start;
+        akinaElapsed = elapsed;
+        if (elapsed >= duration) {
+          akinaFinished = true;
+          clearInterval(interval);
+        }
+      }, 50);
+      return () => clearInterval(interval);
+    }
+  });
+
+  const playerWon = $derived(event.outcome === 'won');
+  const akinaPlayerProgress = $derived(
+    Math.min(1, (akinaElapsed / 4000) * (playerWon ? 1.05 : 0.85))
+  );
+  const akinaOpponentProgress = $derived(
+    Math.min(1, (akinaElapsed / 4000) * (playerWon ? 0.85 : 1.05))
+  );
+  const akinaPlayerBlocks = $derived(
+    akinaFinished && playerWon ? 0 : Math.max(0, 10 - Math.floor(akinaPlayerProgress * 10))
+  );
+  const akinaOpponentBlocks = $derived(
+    akinaFinished && !playerWon ? 0 : Math.max(0, 10 - Math.floor(akinaOpponentProgress * 10))
+  );
+  const akinaPlayerAtb = $derived(
+    akinaFinished ? 1 : (akinaPlayerProgress * 10) % 1
+  );
+  const akinaOpponentAtb = $derived(
+    akinaFinished ? 1 : (akinaOpponentProgress * 10) % 1
+  );
 
   $effect(() => {
     if (event.id === 'gotoh' && event.status === 'play' && gotohGuessing && !busy) {
@@ -278,6 +326,22 @@
             Battle Team Rocket!
           </button>
         </div>
+      {:else if event.id === 'akina'}
+        <div class="dialogue-box">
+          <p class="quote">“The Red Suns issue a challenge to the “Ghost of Akina.” Will you meet them?”</p>
+          <p class="description">Accept the challenge to race against a member of the Red Suns?</p>
+        </div>
+        <div class="choices">
+          <button class="primary" disabled={busy} onclick={() => onchoice('yes')}>
+            Accept
+          </button>
+          <button disabled={busy} onclick={() => onchoice('no')}>
+            Decline (Do not show up)
+          </button>
+        </div>
+        <button class="secondary" disabled={busy} onclick={onclose}>
+          Back to pathways
+        </button>
       {:else}
         <div class="dialogue-box">
           {#if eventDef.quote}
@@ -325,8 +389,8 @@
         </button>
       </div>
 
-    <!-- PLAY STATUS (Mini-games: Janken, Gotoh, Hangman, Madaonaire) -->
-    {:else if event.status === 'play'}
+    <!-- PLAY STATUS (Mini-games: Janken, Gotoh, Hangman, Madaonaire, Akina) -->
+    {:else if event.status === 'play' || (event.id === 'akina' && event.akinaTime !== undefined && !akinaClosed)}
       {#if event.id === 'janken'}
         <div class="timer-pill">Time Remaining: {longTimerRemainingSec}s</div>
         {#if event.jankenTie}
@@ -479,6 +543,96 @@
             </button>
           {/each}
         </div>
+      {:else if event.id === 'akina'}
+        <div class="akina-race-arena">
+          <div class="akina-header">
+            <span class="akina-title">MOUNT DOWNHILL BATTLE</span>
+            <span class="akina-subtitle">First to clear 10 road sections wins!</span>
+          </div>
+
+          <div class="akina-racers">
+            <!-- Player racer -->
+            <div class="akina-racer-card left">
+              {#if event.akinaTargetImage}
+                <img src={event.akinaTargetImage} alt={event.akinaTargetName ?? ''} class="racer-thumb" />
+              {/if}
+              <div class="racer-meta">
+                <span class="racer-role">GHOST OF AKINA</span>
+                <strong class="racer-name">{event.akinaTargetName ?? 'Your Racer'}</strong>
+                <span class="racer-speed">{event.akinaPlayerSpeed ?? 0} SPD</span>
+              </div>
+              <div class="atb-track" aria-label="Player ATB">
+                <div class="atb-fill" style="width: {akinaPlayerAtb * 100}%"></div>
+              </div>
+              <div class="blocks-container">
+                <div class="blocks-group">
+                  {#each Array.from({ length: 5 }) as _, i}
+                    <div class="street-block" class:active={akinaPlayerBlocks > i}></div>
+                  {/each}
+                </div>
+                <div class="blocks-divider"></div>
+                <div class="blocks-group">
+                  {#each Array.from({ length: 5 }) as _, i}
+                    <div class="street-block" class:active={akinaPlayerBlocks > (i + 5)}></div>
+                  {/each}
+                </div>
+              </div>
+              <span class="blocks-count">{akinaPlayerBlocks} sections left</span>
+            </div>
+
+            <div class="akina-vs">VS</div>
+
+            <!-- Opponent racer -->
+            <div class="akina-racer-card right">
+              {#if eventCharacter(event.akinaOpponent ?? 2822)?.image}
+                <img src={eventCharacter(event.akinaOpponent ?? 2822)!.image} alt="Opponent" class="racer-thumb" />
+              {/if}
+              <div class="racer-meta">
+                <span class="racer-role">RED SUNS</span>
+                <strong class="racer-name">{event.akinaOpponent === 2821 ? 'Ryosuke Takahashi' : 'Keisuke Takahashi'}</strong>
+              </div>
+              <div class="atb-track" aria-label="Opponent ATB">
+                <div class="atb-fill" style="width: {akinaOpponentAtb * 100}%"></div>
+              </div>
+              <div class="blocks-container">
+                <div class="blocks-group">
+                  {#each Array.from({ length: 5 }) as _, i}
+                    <div class="street-block" class:active={akinaOpponentBlocks > i}></div>
+                  {/each}
+                </div>
+                <div class="blocks-divider"></div>
+                <div class="blocks-group">
+                  {#each Array.from({ length: 5 }) as _, i}
+                    <div class="street-block" class:active={akinaOpponentBlocks > (i + 5)}></div>
+                  {/each}
+                </div>
+              </div>
+              <span class="blocks-count">{akinaOpponentBlocks} sections left</span>
+            </div>
+          </div>
+
+          {#if akinaFinished}
+            <div class="outcome-banner" class:win={playerWon} class:loss={!playerWon}>
+              <strong>{playerWon ? 'YOU WON!' : 'YOU LOST!'}</strong>
+            </div>
+            <div class="dialogue-box">
+              {#if event.quote}
+                <p class="quote">{event.quote}</p>
+              {/if}
+              <p>{event.message ?? (playerWon ? 'Victory on Mount Akina!' : 'Defeated on Mount Akina.')}</p>
+            </div>
+            <button
+              class="primary"
+              disabled={busy}
+              onclick={() => {
+                akinaClosed = true;
+                onclose();
+              }}
+            >
+              Continue
+            </button>
+          {/if}
+        </div>
       {/if}
 
     <!-- TARGET STATUS -->
@@ -497,6 +651,16 @@
         <div class="dialogue-box">
           <p class="quote">{eventDef.quote}</p>
           <p>Pick one unit from your team:</p>
+        </div>
+      {:else if event.id === 'akina'}
+        <div class="dialogue-box">
+          {#if event.quote}
+            <p class="quote">{event.quote}</p>
+          {/if}
+          <p>Choose one unit from your team to race down Mount Akina:</p>
+          <p class="description">
+            Offensive damage passives do not apply. Speed passives (Red Comet, Godspeed, The World) take full effect!
+          </p>
         </div>
       {:else}
         <div class="dialogue-box">
@@ -556,6 +720,29 @@
       <button class="primary" onclick={onclose}>
         Continue
       </button>
+
+    <!-- BATTLE STATUS (Parasyte mutation alert before entering battle) -->
+    {:else if event.status === 'battle'}
+      <div class="outcome-banner loss">
+        <strong>PARASYTE MUTATION!</strong>
+      </div>
+      {#if event.targetUnitImage}
+        <div class="targeted-unit-box parasyte-overtaken">
+          <img src={event.targetUnitImage} alt={event.targetUnitName ?? ''} />
+          <span><strong>{event.targetUnitName}</strong> has been overtaken!</span>
+        </div>
+      {/if}
+      <div class="dialogue-box">
+        {#if event.quote}
+          <p class="quote">{event.quote}</p>
+        {/if}
+        <p>{event.message ?? 'An alien parasite took full control of their brain! Defeat them with your remaining team!'}</p>
+      </div>
+      <div class="choices">
+        <button class="primary fight-button" disabled={busy} onclick={onbattle ?? onclose}>
+          Fight Overtaken Unit!
+        </button>
+      </div>
     {/if}
 
     <!-- UNIT PICKER FOR TARGET / REWARD -->
@@ -1104,5 +1291,170 @@
 
   .empty-note {
     color: var(--muted);
+  }
+
+  /* Mount Akina Downhill UI */
+
+  .akina-race-arena {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    width: 100%;
+    max-width: 760px;
+  }
+
+  .akina-header {
+    text-align: center;
+  }
+
+  .akina-title {
+    display: block;
+    font: 900 22px 'Raglan Punch', sans-serif;
+    color: var(--accent);
+    letter-spacing: 0.08em;
+  }
+
+  .akina-subtitle {
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  .akina-racers {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    gap: 14px;
+    align-items: center;
+    width: 100%;
+  }
+
+  @media (max-width: 600px) {
+    .akina-racers {
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+  }
+
+  .akina-vs {
+    font: 900 24px 'Raglan Punch', sans-serif;
+    color: var(--accent);
+    text-shadow: 0 0 10px rgba(240, 45, 138, 0.5);
+    text-align: center;
+  }
+
+  .akina-racer-card {
+    background: #141414;
+    border: 2px solid var(--line);
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .akina-racer-card.left {
+    border-color: #64aaff;
+  }
+
+  .akina-racer-card.right {
+    border-color: #ed404a;
+  }
+
+  .racer-thumb {
+    width: 70px;
+    height: 98px;
+    object-fit: cover;
+    border: 2px solid var(--line);
+  }
+
+  .racer-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .racer-role {
+    font: bold 10px var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  .racer-name {
+    font-size: 14px;
+  }
+
+  .racer-speed {
+    font: bold 13px var(--mono);
+    color: #bff8ff;
+  }
+
+  .atb-track {
+    width: 100%;
+    height: 8px;
+    background: #080808;
+    border: 1px solid var(--line);
+    overflow: hidden;
+  }
+
+  .atb-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #f02d8a, #ff96c8);
+    transition: width 0.05s linear;
+  }
+
+  .blocks-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .blocks-group {
+    display: flex;
+    gap: 4px;
+  }
+
+  .blocks-divider {
+    width: 2px;
+    height: 16px;
+    background: var(--accent);
+    opacity: 0.6;
+  }
+
+  .street-block {
+    width: 12px;
+    height: 12px;
+    background: #222;
+    border: 1px solid #444;
+    transition: all 0.2s ease;
+  }
+
+  .street-block.active {
+    background: var(--accent);
+    border-color: #ff96c8;
+    box-shadow: 0 0 6px var(--accent);
+  }
+
+  .blocks-count {
+    font: bold 11px var(--mono);
+    color: var(--muted);
+  }
+
+  .parasyte-overtaken {
+    border: 2px solid #ed404a !important;
+    box-shadow: 0 0 20px rgba(237, 64, 74, 0.4) !important;
+    animation: pulse-red 1.5s infinite;
+  }
+
+  @keyframes pulse-red {
+    0%, 100% {
+      box-shadow: 0 0 10px rgba(237, 64, 74, 0.3);
+    }
+    50% {
+      box-shadow: 0 0 25px rgba(237, 64, 74, 0.7);
+    }
   }
 </style>

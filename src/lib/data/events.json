@@ -50,6 +50,12 @@
       "title": "Madaodog Madaonaire",
       "characterId": 3760,
       "text": "You woke up finding an ad for a quiz show with a reward of 10 million. Accept the quiz?"
+    },
+    "akina": {
+      "title": "Mount Akina Downhill",
+      "characterIds": [2821, 2822],
+      "quote": "“The Red Suns issue a challenge to the “Ghost of Akina.” Will you meet them?”",
+      "text": "The Red Suns issue a challenge to the “Ghost of Akina.” Choose your racer for a downhill speed battle!"
     }
   },
   "rules": {
@@ -60,8 +66,13 @@
     "wildCardFloors": 5,
     "wildCardStatBoost": 50,
     "parasyteStatBoost": 100,
-    "rocketBst": 625,
-    "rocketBalls": 10
+    "rocketBst": 600,
+    "rocketBalls": 10,
+    "akinaKeisukeSpeed": 190,
+    "akinaRyosukeSpeed": 220,
+    "akinaBlocks": 10,
+    "akinaKeisukeFilterPower": 20,
+    "akinaRyosukeFilterPower": 30
   },
   "marineIds": [
     13018,
@@ -121,7 +132,7 @@
       "answer": 0
     },
     {
-      "question": "In Bocchi the Rock!, the name of the band comprised of the 4 main characters—Bocchi, Kita, Nijika, and Ryo—is...",
+      "question": "In Bocchi the Rock!, the name of the band comprised of the 4 main characters:Bocchi, Kita, Nijika, and Ryo, is...",
       "options": [
         "HO-KAGO TEATIME",
         "Detroit Metal City",

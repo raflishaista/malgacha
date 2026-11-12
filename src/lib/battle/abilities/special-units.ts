@@ -2,7 +2,8 @@ import {distributeStats,STAT_KEYS} from '../../stats';
 import type {JourneyCharacter} from '../../types';
 export const SPECIAL_UNITS = {
   pikachu:{id:3891,name:'Pikachu',image:'https://cdn.myanimelist.net/images/characters/10/289627.webp',bst:620},
-  mahad:{id:142840,name:'Mahad',image:'https://cdn.myanimelist.net/images/characters/2/313935.webp',bst:540},
+  mahado:{id:26722,name:'Mahado',image:'https://cdn.myanimelist.net/images/characters/15/120937.webp',bst:540},
+  mahad:{id:26722,name:'Mahado',image:'https://cdn.myanimelist.net/images/characters/15/120937.webp',bst:540},
   slifer:{id:-3100,name:'Slifer the Sky Dragon',image:'/images/units/slifer.png',bst:650},
   faye:{id:2,name:'Valentine, Faye',image:'https://cdn.myanimelist.net/images/characters/15/264961.webp',bst:620},
   jet:{id:3,name:'Black, Jet',image:'https://cdn.myanimelist.net/images/characters/11/253723.webp',bst:620},

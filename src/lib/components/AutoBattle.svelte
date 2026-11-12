@@ -512,11 +512,21 @@
               {#if combatFrame?.counters?.[i]}
                 <div class="counter" class:gamble={combatFrame.counters[i].digits}>
                   {#if combatFrame.counters[i].digits}
-                    {#each combatFrame.counters[i].digits! as digit, j}
-                      <span class:rolling={!finished && combatFrame.counters[i].value === j}>
-                        {digit}
-                      </span>
-                    {/each}
+                    {@const digits = combatFrame.counters[i].digits!}
+                    {@const isRiichi = digits[0] > 0 && digits[0] === digits[1] && digits[2] !== digits[0]}
+                    {@const isJackpot = digits[0] > 0 && digits[0] === digits[1] && digits[1] === digits[2]}
+                    {#if isRiichi}
+                      <span class="riichi-tag">RIICHI!</span>
+                    {:else if isJackpot}
+                      <span class="jackpot-tag">JACKPOT!</span>
+                    {/if}
+                    <div class="gamble-slots">
+                      {#each digits as digit, j}
+                        <span class="slot-digit" class:rolling={!finished && combatFrame.counters[i].value === j}>
+                          {digit}
+                        </span>
+                      {/each}
+                    </div>
                   {:else}
                     {Math.floor(combatFrame.counters[i].value)}%
                   {/if}
@@ -717,7 +727,37 @@
   }
   .counter.gamble {
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 2px 6px;
+  }
+  .gamble-slots {
+    display: flex;
     gap: 4px;
+  }
+  .riichi-tag {
+    font: 900 9px var(--mono);
+    color: #ffd700;
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 6px rgba(255, 215, 0, 0.8);
+    animation: riichi-pulse 0.4s ease-in-out infinite alternate;
+  }
+  .jackpot-tag {
+    font: 900 9px var(--mono);
+    color: var(--accent);
+    letter-spacing: 0.1em;
+    text-shadow: 0 0 8px var(--accent);
+  }
+  @keyframes riichi-pulse {
+    from {
+      opacity: 0.6;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1.05);
+    }
   }
   .counter .rolling {
     animation: digit-roll 0.15s steps(2) infinite;

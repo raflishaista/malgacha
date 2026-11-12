@@ -15,7 +15,7 @@
     "characterId": 913,
     "characterName": "Vegeta",
     "title": "Zenkai Boost",
-    "description": "Once per battle, at 10% HP or below, permanently gains +5 to all stats."
+    "description": "Upon death, permanently gains +5 to all stats."
   },
   {
     "characterId": 40,
@@ -135,7 +135,7 @@
     "characterId": 109929,
     "characterName": "Kageyama, Shigeo",
     "title": "100%",
-    "description": "A counter rises by 6 each second. At 100, gains +50 to every stat for this battle."
+    "description": "Counter steadily ticks up to 100%, then grants +50 to all stats for this battle."
   },
   {
     "characterId": 124731,
@@ -159,13 +159,13 @@
     "characterId": 1374,
     "characterName": "Mutou, Yuugi",
     "title": "King of Games",
-    "description": "Periodically activates a random effect:\nMirror Force: Reflects damage once.\nSwords of Revealing Light: Temporarily prevents the enemy team from attacking.\nDark Magic Curtain: Summons Mahad / Dark Magician as a special allied unit.\nKuriboh: Negates one instance of damage.\nCatapult Turtle: Sacrifices one allied unit to damage an enemy.\nMonster Reborn: Revives a fallen unit.\nSlifer the Sky Dragon: Summons a powerful special unit to the team."
+    "description": "Periodically activates a random effect:\nMirror Force: Reflects damage once.\nSwords of Revealing Light: Temporarily prevents the enemy team from attacking.\nDark Magic Curtain: Summons Mahado / Dark Magician (20% chance) as a special allied unit.\nKuriboh: Negates one instance of damage.\nCatapult Turtle: Sacrifices an ally below 50% HP to damage an enemy.\nMonster Reborn: Revives a fallen unit.\nSlifer the Sky Dragon: Summons a powerful special unit (5% chance)."
   },
   {
     "characterId": 1375,
     "characterName": "Yami Yuugi",
     "title": "King of Games",
-    "description": "Periodically activates a random effect:\nMirror Force: Reflects damage once.\nSwords of Revealing Light: Temporarily prevents the enemy team from attacking.\nDark Magic Curtain: Summons Mahad / Dark Magician as a special allied unit.\nKuriboh: Negates one instance of damage.\nCatapult Turtle: Sacrifices one allied unit to damage an enemy.\nMonster Reborn: Revives a fallen unit.\nSlifer the Sky Dragon: Summons a powerful special unit to the team."
+    "description": "Periodically activates a random effect:\nMirror Force: Reflects damage once.\nSwords of Revealing Light: Temporarily prevents the enemy team from attacking.\nDark Magic Curtain: Summons Mahado / Dark Magician (20% chance) as a special allied unit.\nKuriboh: Negates one instance of damage.\nCatapult Turtle: Sacrifices an ally below 50% HP to damage an enemy.\nMonster Reborn: Revives a fallen unit.\nSlifer the Sky Dragon: Summons a powerful special unit (5% chance)."
   },
   {
     "characterId": 2589,
@@ -231,7 +231,7 @@
     "characterId": 203839,
     "characterName": "Hakari, Kinji",
     "title": "Idle Death Gamble",
-    "description": "Reveals one digit each second. Three matching digits heal to full and grant +77 to all stats for this battle."
+    "description": "Reveals digits sequentially. Two matching digits trigger Riichi with a 50% chance to match the third. Three matching digits heal to full and grant +77 to all stats for this battle."
   },
   {
     "characterId": 5578,
@@ -399,7 +399,7 @@
     "characterId": 27,
     "characterName": "Zoldyck, Killua",
     "title": "Godspeed",
-    "description": "Periodically enters Godspeed for 4 seconds, gaining doubled Speed and reflecting all incoming damage."
+    "description": "Periodically gains REFLECT for 4 seconds. Doubles Speed whenever REFLECT is active."
   },
   {
     "characterId": 175543,

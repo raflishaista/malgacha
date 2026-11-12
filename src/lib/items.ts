@@ -1,6 +1,7 @@
 import { abilityIds } from './battle/abilities/catalog';
 import { keywordsFor } from './battle/keywords';
 import definitions from './data/items.json';
+import { rarityFor } from './rarity';
 import type { JourneyCharacter } from './types';
 export type ItemCategory = 'relic' | 'equipment' | 'consumable';
 export type ItemRarity = 'R' | 'SR' | 'SSR' | 'UR';
@@ -19,7 +20,7 @@ export const CATCH_RATES = {
 };
 export const isBall = (id: ItemId): id is keyof typeof CATCH_RATES => id in CATCH_RATES;
 export const relicCount = (inventory: ItemInstance[], id: ItemId) => inventory.filter(item => item.itemId === id).length;
-export const rerollFilter = (inventory: ItemInstance[]) => relicCount(inventory, 'skin') * 20;
+export const rerollFilter = (inventory: ItemInstance[], bonus = 0) => relicCount(inventory, 'skin') * 20 + bonus;
 export function rollItem(inventory: ItemInstance[], random = Math.random, rarity?: ItemRarity): ItemId {
   const eligible = (Object.keys(ITEMS) as ItemId[]).filter(id => !ITEMS[id].unique || !inventory.some(item => item.itemId === id));
   if (!rarity) {
@@ -42,11 +43,17 @@ export function rewardChoices(inventory: ItemInstance[], random = Math.random): 
 }
 export function canUseOn(id: ItemId, unit: JourneyCharacter): boolean {
   if (unit.empty) return false;
+  if (id === 'senzubean') return false;
   if (ITEMS[id].category === 'equipment') return (unit.equipment?.length ?? 0) < 3;
   if (id === 'rokkakaka') return unit.statRarity !== 'N';
+  if (id === 'whistle_promotion') {
+    const currentRarity = unit.rarityOverride ?? unit.statRarity ?? rarityFor(unit.favorites) ?? 'N';
+    return currentRarity !== 'UR';
+  }
   if (id === 'journal') return !keywordsFor(unit).includes('TAUNT');
   if (id === 'mask') return !keywordsFor(unit).includes('LIFESTEAL');
   if (id === 'drug') return abilityIds(unit).length > 0;
   if (id === 'arrow') return abilityIds(unit).length < 3;
+  if (id === 'devilfruit') return !unit.devilFruit && abilityIds(unit).length < 3;
   return true;
 }

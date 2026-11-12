@@ -4,14 +4,18 @@
 
   let {
     choices,
+    canReroll = false,
     busy,
     error = '',
-    onchoose
+    onchoose,
+    onreroll
   }: {
     choices: ItemId[];
+    canReroll?: boolean;
     busy: boolean;
     error?: string;
     onchoose: (id: ItemId) => void;
+    onreroll?: () => void;
   } = $props();
 
   let dialog: HTMLDialogElement;
@@ -38,19 +42,31 @@
     {#each choices as id, index (`${index}-${id}`)}
       {@const item = ITEMS[id]}
       {@const rarityColor = ITEM_COLORS[item.rarity]}
-      <button
-        type="button"
-        style:border-color={rarityColor}
-        disabled={busy}
-        onclick={() => onchoose(id)}
-      >
-        <div class="graphic">
-          <Icon {id} />
-        </div>
-        <span class="rarity" style:color={rarityColor}>{item.rarity}</span>
-        <strong>{item.name}</strong>
-        <p>{item.description}</p>
-      </button>
+      <div class="choice-col">
+        <button
+          type="button"
+          style:border-color={rarityColor}
+          disabled={busy}
+          onclick={() => onchoose(id)}
+        >
+          <div class="graphic">
+            <Icon {id} />
+          </div>
+          <span class="rarity" style:color={rarityColor}>{item.rarity}</span>
+          <strong>{item.name}</strong>
+          <p>{item.description}</p>
+        </button>
+        {#if index === 1 && canReroll}
+          <button
+            type="button"
+            class="reroll-reward-btn"
+            disabled={busy}
+            onclick={onreroll}
+          >
+            Reroll Choices (Hunter’s License)
+          </button>
+        {/if}
+      </div>
     {/each}
   </div>
 </dialog>
@@ -119,6 +135,27 @@
     margin: 0;
     font-size: 13px;
     line-height: 1.4;
+  }
+
+  .choice-col {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .reroll-reward-btn {
+    padding: 10px 14px;
+    background: #181818;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font: bold 12px var(--mono);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .reroll-reward-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: #080808;
   }
 
   @media (max-width: 600px) {

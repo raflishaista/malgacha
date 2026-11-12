@@ -1,5 +1,5 @@
-import definitions from './data/events.json';
 import cast from './data/event-characters.json';
+import definitions from './data/events.json';
 import type { ItemId } from './items';
 import type { JourneyCharacter, PoolCharacter } from './types';
 
@@ -50,6 +50,15 @@ export type JourneyEvent = {
   hangmanLog?: string[];
   quizIndex?: number;
   ballsReward?: ItemId[];
+  akinaOpponent?: 2821 | 2822;
+  akinaTargetId?: string;
+  akinaTargetName?: string;
+  akinaTargetImage?: string | null;
+  akinaPlayerSpeed?: number;
+  akinaOpponentSpeed?: number;
+  akinaPlayerBlocks?: number;
+  akinaOpponentBlocks?: number;
+  akinaTime?: number;
 };
 
 export type EventAction = {
@@ -60,6 +69,7 @@ export type EventAction = {
   butler?: ButlerName | 'timeout';
   cardIndex?: number | 'timeout';
   answer?: number | 'timeout';
+  akinaOpponent?: 2821 | 2822;
 };
 
 export const eventCharacter = (id: number): PoolCharacter => {

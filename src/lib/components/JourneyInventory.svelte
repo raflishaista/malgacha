@@ -21,6 +21,7 @@
     defeated = [],
     pendingCatch = null,
     notice = '',
+    lives = 3,
     disabled,
     onaction
   }: {
@@ -29,6 +30,7 @@
     defeated?: JourneyCharacter[];
     pendingCatch?: JourneyCharacter | null;
     notice?: string;
+    lives?: number;
     disabled: boolean;
     onaction: (action: InventoryAction) => Promise<boolean>;
   } = $props();
@@ -183,9 +185,28 @@
       <p class="item-desc">{def.description}</p>
 
       {#if def.category === 'consumable'}
-        <button disabled={disabled} onclick={() => (targeting = true)}>
-          Use item
-        </button>
+        {#if selectedItem.itemId === 'senzubean'}
+          <button
+            disabled={disabled || lives >= 3}
+            onclick={async () => {
+              const success = await onaction({
+                action: 'use',
+                item: selectedItem.instanceId
+              });
+              if (success) {
+                used++;
+                selected = null;
+                targeting = false;
+              }
+            }}
+          >
+            {lives >= 3 ? 'Lives Full (3/3)' : 'Consume Senzu Bean (+1 Life)'}
+          </button>
+        {:else}
+          <button disabled={disabled} onclick={() => (targeting = true)}>
+            Use item
+          </button>
+        {/if}
       {/if}
 
       {#if targeting}

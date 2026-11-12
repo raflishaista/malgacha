@@ -146,7 +146,7 @@ export function simulateBattle(left: JourneyCharacter[], right: JourneyCharacter
     stats.forEach((value,i)=>{
       if(effects.has(i,'WEAKENED',time))for(const key of STAT_KEYS)value[key]=Math.max(1,value[key]-20);
       if(!units[i].negated&&effects.has(i,'FESTIVE MIRACLE',time))value.speed*=4;
-      if(!units[i].negated&&effects.has(i,'GODSPEED',time))value.speed*=2;
+      if(!units[i].negated&&(effects.has(i,'GODSPEED',time)||(effects.has(i,'REFLECT',time)&&abilityIds(units[i]).includes(27))))value.speed*=2;
       if(!units[i].negated&&effects.has(i,'POTION BOOST',time))value.speed*=1.15;
       if(implementationsFor(units[i]).some(a=>a.speedFloor))value.speed=Math.max(value.speed,units[i].baseStats.speed);
       if(!units[i].negated&&implementationsFor(units[i]).some(a=>a.id===1336))value.speed=units[i].baseStats.speed*3;

@@ -17,10 +17,12 @@
   let {
     character,
     hideFavorites = false,
+    showBst = false,
     team = []
   }: {
     character: JourneyCharacter;
     hideFavorites?: boolean;
+    showBst?: boolean;
     team?: JourneyCharacter[];
   } = $props();
 
@@ -132,7 +134,7 @@
       <HostAbilities stacks={character.sukunaStacks} />
     {/if}
 
-    <details class="base-stats">
+    <details class="base-stats" open={showBst || undefined}>
       <summary>
         Base stats <span>BST {statTotal(character.baseStats)}</span>
       </summary>

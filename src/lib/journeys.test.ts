@@ -57,4 +57,52 @@ describe('starting teams', () => {
     const customTeam = testingStarterTeam(customPool);
     expect(customTeam.some(c => c.name.startsWith('Custom '))).toBe(true);
   });
+
+  it('scales opponent teams by floor according to tier rules', () => {
+    const diversePool = [
+      ...Array.from({ length: 5 }, (_, i) => ({ ...character(100 + i), favorites: 10 })), // N
+      ...Array.from({ length: 5 }, (_, i) => ({ ...character(200 + i), favorites: 500 })), // R
+      ...Array.from({ length: 5 }, (_, i) => ({ ...character(300 + i), favorites: 2000 })), // SR
+      ...Array.from({ length: 5 }, (_, i) => ({ ...character(400 + i), favorites: 6000 })), // SSR
+      ...Array.from({ length: 5 }, (_, i) => ({ ...character(500 + i), favorites: 25000 })) // UR
+    ];
+
+    // Floor 5: 5 random units
+    const floor5Teams = opponentTeams(diversePool, () => 0.5, 5);
+    expect(floor5Teams[0]).toHaveLength(5);
+
+    // Floor 35 (Tier 4): 5 R units, 2 abilities
+    const floor35Teams = opponentTeams(diversePool, () => 0.5, 35);
+    expect(floor35Teams[0]).toHaveLength(5);
+    expect(floor35Teams[0].every((u) => u.statRarity === 'R')).toBe(true);
+    const countAbilities = (u: any) => (abilityFor(u.id) ? 1 : 0) + (u.extraAbilities?.length ?? 0);
+    const total35Abilities = floor35Teams[0].reduce((s, u) => s + countAbilities(u), 0);
+    expect(total35Abilities).toBe(2);
+
+    // Floor 105 (Tier 11): 6 units (5 SSR + 1 random), 5 abilities
+    const floor105Teams = opponentTeams(diversePool, () => 0.5, 105);
+    expect(floor105Teams[0]).toHaveLength(6);
+    const total105Abilities = floor105Teams[0].reduce((s, u) => s + countAbilities(u), 0);
+    expect(total105Abilities).toBe(5);
+
+    // Floor 145 (Tier 15): 6 units (6 UR), 8 abilities evenly spread (min 1, max 2)
+    const floor145Teams = opponentTeams(diversePool, () => 0.5, 145);
+    expect(floor145Teams[0]).toHaveLength(6);
+    expect(floor145Teams[0].every((u) => u.statRarity === 'UR')).toBe(true);
+    const total145Abilities = floor145Teams[0].reduce((s, u) => s + countAbilities(u), 0);
+    expect(total145Abilities).toBe(8);
+    const counts145 = floor145Teams[0].map(countAbilities);
+    expect(Math.min(...counts145)).toBe(1);
+    expect(Math.max(...counts145)).toBe(2);
+
+    // Floor 195 (Tier 20): 7 units (7 UR), 16 abilities evenly spread (min 2, max 3)
+    const floor195Teams = opponentTeams(diversePool, () => 0.5, 195);
+    expect(floor195Teams[0]).toHaveLength(7);
+    expect(floor195Teams[0].every((u) => u.statRarity === 'UR')).toBe(true);
+    const total195Abilities = floor195Teams[0].reduce((s, u) => s + countAbilities(u), 0);
+    expect(total195Abilities).toBe(16);
+    const counts195 = floor195Teams[0].map(countAbilities);
+    expect(Math.min(...counts195)).toBe(2);
+    expect(Math.max(...counts195)).toBe(3);
+  });
 });

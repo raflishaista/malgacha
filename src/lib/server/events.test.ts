@@ -195,3 +195,23 @@ it('Madaodog Madaonaire grants an item reward on correct answer', async () => {
   expect(win.encounter!.events![0]!.outcome).toBe('won');
   expect(win.itemReward?.choices).toHaveLength(3);
 });
+
+it('Mount Akina Downhill randomly selects Keisuke or Ryosuke upon accepting', async () => {
+  const { engine, id, team } = await setup('akina');
+  const start = await engine.journeyEvent(id, { index: 0, choice: 'yes' });
+  const event = start.encounter!.events![0]!;
+  expect(event.status).toBe('target');
+  expect([2821, 2822]).toContain(event.akinaOpponent);
+  expect(event.quote).toBeTruthy();
+
+  const race = await engine.journeyEvent(id, { index: 0, target: team[0].instanceId });
+  const raceEvent = race.encounter!.events![0]!;
+  expect(raceEvent.status).toBe('complete');
+  expect(raceEvent.akinaPlayerSpeed).toBeGreaterThan(0);
+  expect(raceEvent.akinaOpponentSpeed).toBeGreaterThan(0);
+  expect(['won', 'lost']).toContain(raceEvent.outcome);
+
+  // Verify that the player can advance to the next floor cleanly
+  const nextFloor = await engine.journeyOpponents(id);
+  expect(nextFloor.teams).toBeDefined();
+});

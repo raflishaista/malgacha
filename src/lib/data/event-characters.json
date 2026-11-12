@@ -568,5 +568,50 @@
         "status": "completed"
       }
     ]
+  },
+  {
+    "id": 2821,
+    "name": "Takahashi, Ryousuke",
+    "image": "https://cdn.myanimelist.net/images/characters/12/296426.webp",
+    "favorites": 1920,
+    "url": "https://myanimelist.net/character/2821",
+    "titles": [
+      {
+        "id": 185,
+        "kind": "anime",
+        "name": "Initial D First Stage",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 2822,
+    "name": "Takahashi, Keisuke",
+    "image": "https://cdn.myanimelist.net/images/characters/15/207581.webp",
+    "favorites": 730,
+    "url": "https://myanimelist.net/character/2822",
+    "titles": [
+      {
+        "id": 185,
+        "kind": "anime",
+        "name": "Initial D First Stage",
+        "status": "completed"
+      }
+    ]
+  },
+  {
+    "id": 26722,
+    "name": "Mahado",
+    "image": "https://cdn.myanimelist.net/images/characters/15/120937.webp",
+    "favorites": 16,
+    "url": "https://myanimelist.net/character/26722",
+    "titles": [
+      {
+        "id": 481,
+        "kind": "anime",
+        "name": "Yu☆Gi☆Oh! Duel Monsters",
+        "status": "completed"
+      }
+    ]
   }
 ]

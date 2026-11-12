@@ -46,7 +46,7 @@
 
   // Inventory & Rewards
   let inventory = $state<ItemInstance[]>([]);
-  let itemReward = $state<{ id: string; choices: ItemId[] } | null>(null);
+  let itemReward = $state<{ id: string; choices: ItemId[]; rerolled?: boolean } | null>(null);
   let pendingCatch = $state<JourneyCharacter | null>(null);
   let pendingWildCard = $state<JourneyCharacter | null>(null);
   let itemNotice = $state('');
@@ -69,7 +69,11 @@
   // Stage selection
   let stage = $state<StageId | undefined>();
   let rollingStage = $state(false);
+  let stageRerolled = $state(false);
   let displayedStage = $state<StageId>('punk');
+
+  // UI state
+  let showAllBsts = $state(false);
 
   // Combat State
   let fought = $state(false);
@@ -126,6 +130,7 @@
         opponents = data.encounter.teams;
         events = data.encounter.events ?? [];
         stage = data.encounter.stage;
+        stageRerolled = !!data.encounter.stageRerolled;
         displayedStage = stage ?? 'punk';
         selected = data.encounter.selected ?? null;
 
@@ -137,8 +142,12 @@
         eventOpen = !!(
           selected !== null &&
           events[selected] &&
-          ['choice', 'target', 'confirm', 'play', 'reward'].includes(events[selected]!.status)
+          (['choice', 'target', 'confirm', 'play', 'reward'].includes(events[selected]!.status) ||
+            (events[selected]!.status === 'battle' && events[selected]!.id === 'parasyte'))
         );
+      } else if (data.encounter) {
+        stage = data.encounter.stage ?? stage;
+        stageRerolled = !!data.encounter.stageRerolled;
       }
       return true;
     } catch (cause) {
@@ -174,9 +183,13 @@
       displayedStage = stage ?? 'punk';
 
       if (events[selected]?.status === 'battle') {
-        eventOpen = false;
-        mode = 'idle';
-        startEventBattle = true;
+        if (events[selected]?.id === 'parasyte' && events[selected]?.outcome === 'lost') {
+          eventOpen = true;
+        } else {
+          eventOpen = false;
+          mode = 'idle';
+          startEventBattle = true;
+        }
       }
     } catch (cause) {
       error = cause instanceof Error ? cause.message : 'Event failed.';
@@ -401,6 +414,11 @@
     onchoice={(choice) => eventAction({ choice })}
     ontarget={(target) => eventAction({ target })}
     onaction={(act) => eventAction(act)}
+    onbattle={async () => {
+      eventOpen = false;
+      mode = 'idle';
+      await battle();
+    }}
     onclose={() => {
       eventOpen = false;
       if (
@@ -417,6 +435,8 @@
 {#if itemReward && !playing && !eventOpen}
   <ItemReward
     choices={itemReward.choices}
+    canReroll={relicCount(inventory, 'license') > 0 && !itemReward.rerolled}
+    onreroll={() => inventoryAction({ action: 'reroll-reward' })}
     {busy}
     {error}
     onchoose={(item) => inventoryAction({ action: 'claim', item, reward: itemReward!.id })}
@@ -446,13 +466,13 @@
         </div>
         <p class="wildcard-prompt">Choose a slot for {pendingWildCard.name} to reclaim:</p>
         <div class="wildcard-units">
-          {#each currentTeam as unit (unit.instanceId)}
+          {#each currentTeam as unit, idx (unit.instanceId || idx)}
             <div class="wildcard-slot">
               <Card character={unit} team={currentTeam} />
               <button
                 class="primary"
                 disabled={busy}
-                onclick={() => inventoryAction({ action: 'place-wildcard', target: unit.instanceId })}
+                onclick={() => inventoryAction({ action: 'place-wildcard', target: unit.instanceId || String(idx) })}
               >
                 {unit.empty ? 'Fill empty slot' : `Replace ${unit.name}`}
               </button>
@@ -474,6 +494,7 @@
     defeated={fought && won ? enemy ?? [] : []}
     {pendingCatch}
     notice={itemNotice}
+    {lives}
     disabled={busy || playing || parentBusy}
     onaction={inventoryAction}
   />
@@ -527,6 +548,21 @@
 
   {#if stage && !bossEncounter}
     <StageBanner stage={displayedStage} rolling={rollingStage} />
+    {#if relicCount(inventory, 'door') > 0 && !fought && !playing}
+      <button
+        type="button"
+        class="reroll-stage-btn"
+        disabled={busy || stageRerolled}
+        onclick={async () => {
+          const success = await inventoryAction({ action: 'reroll-stage' });
+          if (success && stage) {
+            void revealStage(stage);
+          }
+        }}
+      >
+        {stageRerolled ? 'Stage Rerolled (Dokodemo Door)' : 'Reroll Stage (Dokodemo Door)'}
+      </button>
+    {/if}
   {/if}
 
   {#if stage && mode === 'clout'}
@@ -545,7 +581,16 @@
 
   <div class="encounter" class:departed={opponents.length > 0}>
     <section aria-label="Your team">
-      <h3>Your team</h3>
+      <div class="team-header-row">
+        <h3>Your team</h3>
+        <button
+          type="button"
+          class="toggle-bst-btn"
+          onclick={() => (showAllBsts = !showAllBsts)}
+        >
+          {showAllBsts ? 'Hide All BSTs' : 'Show All BSTs'}
+        </button>
+      </div>
       {#if fought && won && !rewardUsed && rerollFilter(inventory)}
         <p>Current filter power: &gt;{rerollFilter(inventory)} favorites</p>
       {/if}
@@ -553,7 +598,7 @@
       <div class="units">
         {#each currentTeam as character (character.instanceId)}
           <div>
-            <Card {character} team={currentTeam} />
+            <Card {character} team={currentTeam} showBst={showAllBsts} />
             {#if fought && won && !rewardUsed}
               <button disabled={busy} onclick={() => battle(character.instanceId)}>
                 {character.empty ? 'Fill this slot' : 'Replace this member'}
@@ -626,8 +671,8 @@
           </div>
         {:else if selectedEvent && selectedEvent.status !== 'battle' && !fought}
           <h3>{EVENTS[selectedEvent.id].title}</h3>
-          <p>{selectedEvent.status === 'complete' ? 'Event complete.' : 'Choose an event option to continue.'}</p>
-          {#if selectedEvent.status !== 'complete'}
+          <p>{selectedEvent.status === 'complete' || (selectedEvent.id === 'akina' && selectedEvent.outcome) ? 'Event complete.' : 'Choose an event option to continue.'}</p>
+          {#if selectedEvent.status !== 'complete' && !(selectedEvent.id === 'akina' && selectedEvent.outcome)}
             <button onclick={() => (eventOpen = true)}>Open event</button>
           {/if}
         {:else if enemy}
@@ -726,7 +771,7 @@
               ? 'PLACE WILD CARD TO PROCEED'
               : 'DEPART'}
       </button>
-    {:else if selectedEvent?.status === 'complete' && !fought}
+    {:else if selectedEvent && (selectedEvent.status === 'complete' || (selectedEvent.id === 'akina' && selectedEvent.outcome)) && !fought}
       <button class="fight-button primary" disabled={busy || !!itemReward || !!pendingWildCard} onclick={depart}>
         {itemReward
           ? 'CLAIM REWARD TO PROCEED'
@@ -881,6 +926,44 @@
   .departed > section + section {
     border-left: 1px solid var(--purple-line);
     padding-left: 28px;
+  }
+  .team-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .team-header-row h3 {
+    margin: 0;
+  }
+  .toggle-bst-btn {
+    padding: 6px 12px;
+    background: #141414;
+    border: 1px solid var(--purple-line);
+    color: var(--accent);
+    font: bold 12px var(--mono);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .toggle-bst-btn:hover {
+    border-color: var(--accent);
+    background: #1a1a1a;
+  }
+  .reroll-stage-btn {
+    display: inline-block;
+    margin: 8px 0 14px;
+    padding: 8px 16px;
+    background: #151515;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font: bold 12px var(--mono);
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+  .reroll-stage-btn:hover:not(:disabled) {
+    background: var(--accent);
+    color: #080808;
   }
   .units {
     display: grid;

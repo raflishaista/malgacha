@@ -155,10 +155,12 @@ describe('durable imports', () => {
     const bossEncounter = await engine.journeyOpponents(job.id);
     expect(bossEncounter.stage).toBeDefined();
     expect((await store.getJob(job.id))!.encounter!.stage).toBeDefined();
-    const fight = await engine.journeyBattle(job.id, 0, undefined, 'idle');
+    const enc = (await store.getJob(job.id))!.encounter!;
+    const opIdx = enc.events ? Math.max(0, enc.events.findIndex((e) => !e)) : 0;
+    const fight = await engine.journeyBattle(job.id, opIdx, undefined, 'idle');
     expect(fight.replay!.stage).toBeDefined();
     expect(fight.itemReward!.choices).toHaveLength(3);
-    expect((await engine.journeyBattle(job.id, 0, undefined, 'idle')).itemReward).toEqual(fight.itemReward);
+    expect((await engine.journeyBattle(job.id, opIdx, undefined, 'idle')).itemReward).toEqual(fight.itemReward);
     await expect(engine.journeyOpponents(job.id)).rejects.toThrow('Choose your item reward');
     const action = { action: 'claim' as const, item: fight.itemReward!.choices[0], reward: fight.itemReward!.id };
     const claims = await Promise.allSettled([engine.journeyInventory(job.id, action), engine.journeyInventory(job.id, action)]);

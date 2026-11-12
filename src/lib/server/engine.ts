@@ -197,6 +197,8 @@ export class Engine {
       if (!event.previewTeam) {
         event.previewTeam = ROCKET_IDS.map((rid) => rocketUnit(rid, random));
       }
+    } else if (event.id === 'akina') {
+      event.quote = '“The Red Suns issue a challenge to the “Ghost of Akina.” Will you meet them?”';
     }
   }
 
@@ -226,12 +228,20 @@ export class Engine {
         throw new Error('Your team is empty. Use the testing team reroll to continue.');
       }
       if (
+        job.encounter?.stage !== 'alcatraz' &&
         job.encounter?.selected !== undefined &&
         job.encounter.events?.[job.encounter.selected] &&
         !['complete'].includes(job.encounter.events[job.encounter.selected]!.status) &&
         !job.encounter.gameOver
       ) {
-        throw new Error('Finish your event before continuing.');
+        if (
+          job.encounter.events[job.encounter.selected]!.id === 'akina' &&
+          job.encounter.events[job.encounter.selected]!.outcome
+        ) {
+          job.encounter.events[job.encounter.selected]!.status = 'complete';
+        } else {
+          throw new Error('Finish your event before continuing.');
+        }
       }
 
       const random = () => randomInt(0, 2 ** 32) / 2 ** 32;
@@ -243,26 +253,31 @@ export class Engine {
         return { teams };
       }
 
-      const teams = opponentTeams(Object.values(job.pool), random).map((team) =>
+      const floor = (job.arenaWins ?? 0) + 1;
+      const teams = opponentTeams(Object.values(job.pool), random, floor).map((team) =>
         team.map((character) => {
-          const statRarity = rarityFor(character.favorites) ?? 'N';
+          const statRarity = character.statRarity ?? rarityFor(character.favorites) ?? 'N';
+          const baseStats = character.baseStats ?? generateBaseStats(statRarity, random);
           return {
             ...character,
             instanceId: randomUUID(),
             statRarity,
-            baseStats: generateBaseStats(statRarity, random)
+            baseStats,
+            ...(character.extraAbilities ? { extraAbilities: character.extraAbilities } : {}),
+            ...(character.rarityOverride ? { rarityOverride: character.rarityOverride } : {})
           };
         })
       );
 
-      const events = rollEvents(random);
+      const stage = rollStage(random);
+      const events = stage === 'alcatraz' ? [null, null, null] : rollEvents(random);
       for (const ev of events) {
         if (ev) this.prepareEventMetadata(job, ev, random);
       }
 
       job.encounter = {
         teams,
-        stage: rollStage(random),
+        stage,
         events
       };
 
@@ -403,6 +418,9 @@ export class Engine {
         }
 
         const isAlcatrazRoyale = encounter.stage === 'alcatraz' && encounter.teams.length >= 3;
+        if (isAlcatrazRoyale) {
+          delete encounter.events;
+        }
         const event = encounter.events?.[opponent!];
         if (!isAlcatrazRoyale) {
           if (event && event.status !== 'battle' && !encounter.result) {
@@ -694,6 +712,8 @@ export class Engine {
             event.message = 'You refuse Sadakuni’s Kakerou gamble.';
           } else if (event.id === 'madao') {
             event.quote = '“You might need that money, you know?”';
+          } else if (event.id === 'akina') {
+            event.quote = '“You decide not to show up to Mount Akina.”';
           }
           this.advanceFloor(job);
         } else if (event.id === 'creature') {
@@ -717,6 +737,14 @@ export class Engine {
             throw new Error('No units are eligible for the Wild Card program. Choose No to continue.');
           }
           event.status = 'target';
+        } else if (event.id === 'akina') {
+          const opponentId = random() < 0.5 ? 2822 : 2821;
+          event.akinaOpponent = opponentId;
+          event.status = 'target';
+          event.quote =
+            opponentId === 2822
+              ? '“You’re here. The 86. Come on!”'
+              : '“I knew you would come. Let’s race.”';
         } else if (event.id === 'parasyte') {
           const livingIndices = team.flatMap((c, i) => (!c.empty ? [i] : []));
           if (!livingIndices.length) {
@@ -760,6 +788,9 @@ export class Engine {
             encounter.teams[action.index] = [parasyteFoe];
             delete encounter.stage;
             event.status = 'battle';
+            event.outcome = 'lost';
+            event.quote = '“S-save me…!”';
+            event.message = `${target.name} has been overtaken by the Parasyte! Prepare your remaining team to battle!`;
           }
         } else if (event.id === 'rocket') {
           encounter.teams[action.index] =
@@ -988,6 +1019,10 @@ export class Engine {
             event.quote = '“There’s more debt?!”';
             this.advanceFloor(job);
           }
+        } else if (event.id === 'akina') {
+          event.status = 'complete';
+          await this.store.saveJob(job);
+          return inventoryView(job);
         }
       } else if (event.status === 'target' || event.status === 'reward') {
         if (event.status === 'target' && event.id === 'wildcard') {
@@ -1024,6 +1059,79 @@ export class Engine {
           event.message = `${unit.name} got ${event.abilityName}!`;
           event.status = 'complete';
           this.advanceFloor(job);
+        } else if (event.status === 'target' && event.id === 'akina') {
+          const index = team.findIndex((c) => c.instanceId === action.target && !c.empty);
+          if (index < 0) {
+            throw new Error('Choose a living team member.');
+          }
+          const racer = team[index];
+          event.akinaTargetId = racer.instanceId;
+          event.akinaTargetName = racer.name;
+          event.akinaTargetImage = racer.image;
+
+          let playerSpeed = racer.baseStats.speed + (racer.permanentBoosts?.speed ?? 0);
+          for (const item of racer.equipment ?? []) {
+            if (item.itemId === 'airgear') playerSpeed += 30;
+            if (item.itemId === 'swordfish') playerSpeed += 20;
+          }
+          if (racer.marine) {
+            playerSpeed *= 1.1;
+          }
+          if (racer.keywords?.includes('WILD CARD')) {
+            playerSpeed += 50;
+          }
+
+          const abilities = abilityIds(racer);
+          let freezeSeconds = 0;
+          if (abilities.includes(38005)) {
+            playerSpeed *= 3;
+          }
+          if (abilities.includes(27)) {
+            playerSpeed *= 2;
+          }
+          if (abilities.includes(23277)) {
+            freezeSeconds = 5;
+          }
+
+          const opponentSpeed =
+            event.akinaOpponent === 2821
+              ? EVENT_RULES.akinaRyosukeSpeed
+              : EVENT_RULES.akinaKeisukeSpeed;
+          event.akinaPlayerSpeed = Math.round(playerSpeed);
+          event.akinaOpponentSpeed = opponentSpeed;
+
+          const playerInterval = 3.6 * Math.sqrt(125 / Math.max(1, playerSpeed));
+          const opponentInterval = 3.6 * Math.sqrt(125 / Math.max(1, opponentSpeed));
+
+          const playerTotalTime = 10 * playerInterval;
+          const opponentTotalTime = 10 * opponentInterval + freezeSeconds;
+
+          const playerWon = playerTotalTime <= opponentTotalTime;
+          event.akinaTime = Math.min(playerTotalTime, opponentTotalTime);
+          event.status = 'complete';
+
+          if (playerWon) {
+            event.outcome = 'won';
+            const bonus =
+              event.akinaOpponent === 2821
+                ? EVENT_RULES.akinaRyosukeFilterPower
+                : EVENT_RULES.akinaKeisukeFilterPower;
+            job.filterBonus = (job.filterBonus ?? 0) + bonus;
+            event.quote =
+              event.akinaOpponent === 2821
+                ? '“A defeat is a defeat. We’ll meet again.”'
+                : '“There’s no way! What was that?!”';
+            event.message = `You gained some notoriety! +${bonus} filter power!`;
+            this.advanceFloor(job);
+          } else {
+            event.outcome = 'lost';
+            event.quote =
+              event.akinaOpponent === 2821
+                ? '“You stood out amongst all of the racers I’ve seen. We’ll meet again.”'
+                : '“Phew. I guess the Ghost of Akina was nothing.”';
+            event.message = 'You were defeated on Mount Akina. You gained nothing.';
+            this.advanceFloor(job);
+          }
         } else {
           const index = team.findIndex(
             (c) =>

@@ -65,22 +65,44 @@ function lindDecoyProtection(context: AbilityContext, owner: number, target: num
  * Millennium Puzzle card deck choices for Yugi (1374) & Yami Yugi (1375).
  */
 function planMillenniumCard(context: AbilityContext, owner: number, abilityId: number): number[] {
-  const cardPool = [
+  const allies = context.allies(owner);
+  const injuredAllies = allies.filter((i) => context.hp[i] < context.maxHP[i] * 0.5);
+  const canUseCatapult = injuredAllies.length > 0;
+
+  const mahadoUsed = context.state(owner, 26722).used || context.state(owner, 142840).used;
+  const sliferUsed = context.state(owner, -3100).used;
+
+  const weights: { card: string; weight: number }[] = [];
+  if (!sliferUsed) weights.push({ card: 'Slifer the Sky Dragon', weight: 5 });
+  if (!mahadoUsed) weights.push({ card: 'Dark Magic Curtain', weight: 20 });
+
+  const regularCards = [
     'Mirror Force',
     'Swords of Revealing Light',
-    'Dark Magic Curtain',
     'Kuriboh',
-    'Catapult Turtle',
-    'Monster Reborn',
-    'Slifer the Sky Dragon'
+    'Monster Reborn'
   ];
+  if (canUseCatapult) {
+    regularCards.push('Catapult Turtle');
+  }
 
-  // Exclude single-use summons if already used
-  const availableCards = cardPool
-    .filter((_, index) => index !== 2 || !context.state(owner, 142840).used)
-    .filter(name => name !== 'Slifer the Sky Dragon' || !context.state(owner, -3100).used);
+  const baseRemainingWeight = 100 - (sliferUsed ? 0 : 5) - (mahadoUsed ? 0 : 20);
+  const perCardWeight = baseRemainingWeight / regularCards.length;
+  for (const card of regularCards) {
+    weights.push({ card, weight: perCardWeight });
+  }
 
-  const chosenCard = availableCards[Math.floor(context.random() * availableCards.length)];
+  const totalWeight = weights.reduce((sum, w) => sum + w.weight, 0);
+  let roll = context.random() * totalWeight;
+  let chosenCard = weights[0].card;
+  for (const item of weights) {
+    roll -= item.weight;
+    if (roll <= 0) {
+      chosenCard = item.card;
+      break;
+    }
+  }
+
   context.state(owner, abilityId).card = chosenCard;
 
   if (chosenCard === 'Swords of Revealing Light') {
@@ -111,8 +133,9 @@ function playMillenniumCard(context: AbilityContext, owner: number, abilityId: n
       break;
 
     case 'Dark Magic Curtain':
+      context.state(owner, 26722).used = true;
       context.state(owner, 142840).used = true;
-      context.summon(owner, 'mahad');
+      context.summon(owner, 'mahado');
       break;
 
     case 'Slifer the Sky Dragon':
@@ -135,9 +158,10 @@ function playMillenniumCard(context: AbilityContext, owner: number, abilityId: n
 
     case 'Catapult Turtle': {
       const allies = context.allies(owner);
+      const injuredAllies = allies.filter((i) => context.hp[i] < context.maxHP[i] * 0.5);
       const target = context.target(owner);
-      if (allies.length > 0 && target !== undefined) {
-        const sacrifice = allies[Math.floor(context.random() * allies.length)];
+      if (injuredAllies.length > 0 && target !== undefined) {
+        const sacrifice = injuredAllies[Math.floor(context.random() * injuredAllies.length)];
         context.damage(owner, sacrifice, 1, card, true);
         context.damage(owner, target, 0.8, card, true);
       }
@@ -291,11 +315,19 @@ export const thresholdAbilities: AbilityDefinition[] = [
     context.effect(owner, owner, 'SUPER SAIYAN', 1e6, 'Super Saiyan');
   }),
 
-  // Vegeta - Zenkai Boost (913): Permanent +5 all stats below 10% HP
-  onceBelowThreshold(913, 0.1, (context, owner) => {
-    context.addStats(owner, R.vegetaBonus, 'Zenkai Boost', true);
-    context.effect(owner, owner, 'ZENKAI', 1e6, 'Zenkai Boost');
-  }),
+  // Vegeta - Zenkai Boost (913): Permanent +5 all stats on death
+  {
+    id: 913,
+    onDeath(context, owner) {
+      const state = context.state(owner, 913);
+      if (!state.used) {
+        state.used = true;
+        context.addStats(owner, R.vegetaBonus, 'Zenkai Boost', true);
+        context.effect(owner, owner, 'ZENKAI', 1e6, 'Zenkai Boost');
+      }
+      return false;
+    }
+  },
 
   // Tokita Ohma - Advance (132742): Stat boost below 50% HP
   onceBelowThreshold(132742, 0.5, (context, owner) => {
@@ -504,19 +536,19 @@ export const timedCharacters: AbilityDefinition[] = [
   // Shigeo Kageyama (Mob) - 100% (109929): Counter ticks up to 100%, then +50 all stats
   {
     id: 109929,
-    cooldown: 1,
+    cooldown: 1 / 6,
     onStart(context, owner) {
       context.setCounter(owner, 109929, 0);
     },
     onTimed(context, owner) {
       const state = context.state(owner, 109929);
-      state.count = Math.min(100, (state.count ?? 0) + R.shigeoRate);
+      state.count = Math.min(100, (state.count ?? 0) + 1);
       context.setCounter(owner, 109929, state.count);
       if (state.count >= 100) {
         context.addStats(owner, 50, '100%');
         return { nextDelay: Infinity };
       }
-      return { nextDelay: 1 };
+      return { nextDelay: 1 / 6 };
     }
   },
 
@@ -529,9 +561,28 @@ export const timedCharacters: AbilityDefinition[] = [
     },
     onTimed(context, owner) {
       const state = context.state(owner, 203839);
-      state.digits = state.digits ?? [0, 0, 0];
       state.phase = state.phase ?? 0;
-      state.digits[state.phase] = Math.floor(context.random() * R.hakariDigits) + 1;
+      if (state.phase === 0) {
+        state.digits = [0, 0, 0];
+      } else {
+        state.digits = state.digits ?? [0, 0, 0];
+      }
+
+      if (state.phase === 2 && state.digits[0] === state.digits[1] && state.digits[0] > 0) {
+        // Riichi: 50% chance to match the first two digits
+        if (context.random() < 0.5) {
+          state.digits[2] = state.digits[0];
+        } else {
+          state.digits[2] = Math.floor(context.random() * R.hakariDigits) + 1;
+        }
+      } else {
+        state.digits[state.phase] = Math.floor(context.random() * R.hakariDigits) + 1;
+      }
+
+      if (state.phase === 1 && state.digits[0] === state.digits[1]) {
+        context.emit(owner, owner, 'buff', 'Riichi');
+      }
+
       context.setCounter(owner, 203839, state.phase, [...state.digits]);
       state.phase++;
 
@@ -1079,7 +1130,6 @@ export const godspeed: AbilityDefinition = {
   bossGauge: true,
   targets: 'self',
   onTimed(context, owner) {
-    context.effect(owner, owner, 'GODSPEED', 4, 'Godspeed');
     context.effect(owner, owner, 'REFLECT', 4, 'Godspeed');
     return { nextDelay: 8 };
   }

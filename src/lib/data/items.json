@@ -4,7 +4,7 @@
     "category": "consumable",
     "rarity": "R",
     "unique": false,
-    "description": "Try to catch a defeated opponent, then choose a team slot to replace. Catch rates: N large, R moderate, SR small, SSR very small, UR very small. Bosses cannot be caught."
+    "description": "Receive 5 Poké Balls. Try to catch a defeated opponent, then choose a team slot to replace. Catch rates: N large, R moderate, SR small, SSR very small, UR very small. Bosses cannot be caught."
   },
   "nichirin": {
     "name": "Nichirin Sword",
@@ -35,18 +35,18 @@
     "description": "Each skin guides to treasure, raising the minimum favorites filter for victory rerolls by 20. Stacks."
   },
   "senzubean": {
-    "name": "Senzu Bean (WIP)",
+    "name": "Senzu Bean",
     "category": "consumable",
     "rarity": "R",
     "unique": false,
-    "description": "On consumption, increase 1 life. Unable to use when at full life."
+    "description": "On consumption, restores 1 life. Cannot be used when life is full."
   },
   "greatball": {
     "name": "Great Ball",
     "category": "consumable",
     "rarity": "SR",
     "unique": false,
-    "description": "Try to catch a defeated opponent. Catch rates: N guaranteed, R large, SR moderate, SSR small, UR very small. Bosses cannot be caught."
+    "description": "Receive 3 Great Balls. Try to catch a defeated opponent. Catch rates: N guaranteed, R large, SR moderate, SSR small, UR very small. Bosses cannot be caught."
   },
   "radar": {
     "name": "Dragon Ball Radar",
@@ -90,12 +90,19 @@
     "unique": false,
     "description": "Gives the strongest other ally +5% of every base stat. Uses base BST; ties go to the first ally. Copies stack."
   },
+  "whistle_promotion": {
+    "name": "Whistle Promotion",
+    "category": "consumable",
+    "rarity": "SR",
+    "unique": false,
+    "description": "Promotes a selected unit to the next rarity tier (N -> R -> SR -> SSR -> UR). BST boosts are split evenly across all stats."
+  },
   "ultraball": {
     "name": "Ultra Ball",
     "category": "consumable",
     "rarity": "SSR",
     "unique": false,
-    "description": "Try to catch a defeated opponent. Catch rates: N guaranteed, R guaranteed, SR large, SSR moderate, UR very small. Bosses cannot be caught."
+    "description": "Receive 1 Ultra Ball. Try to catch a defeated opponent. Catch rates: N guaranteed, R guaranteed, SR large, SSR moderate, UR very small. Bosses cannot be caught."
   },
   "dragonball": {
     "name": "Dragon Ball",
@@ -151,7 +158,7 @@
     "category": "consumable",
     "rarity": "UR",
     "unique": false,
-    "description": "Catch any defeated non-boss opponent without fail, then choose a team slot to replace."
+    "description": "Receive 1 Master Ball. Catch any defeated non-boss opponent without fail, then choose a team slot to replace."
   },
   "stone": {
     "name": "Philosopher’s Stone",
@@ -194,5 +201,26 @@
     "rarity": "UR",
     "unique": true,
     "description": "Permanently adds one team slot, filled with a random character. One per player."
+  },
+  "license": {
+    "name": "Hunter’s License",
+    "category": "relic",
+    "rarity": "UR",
+    "unique": true,
+    "description": "Allows one reroll on item reward choices. One per player."
+  },
+  "door": {
+    "name": "Dokodemo Door",
+    "category": "relic",
+    "rarity": "UR",
+    "unique": true,
+    "description": "Allows one reroll on the stage before a fight. One per player."
+  },
+  "devilfruit": {
+    "name": "Devil Fruit",
+    "category": "consumable",
+    "rarity": "UR",
+    "unique": false,
+    "description": "Permanently grants a random passive ability to a chosen unit. Only one Devil Fruit can be used per unit."
   }
 }

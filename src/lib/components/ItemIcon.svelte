@@ -19,8 +19,8 @@
     {:else if id === 'nichirin'}
       <path d="M22 42L49 8l-9 24-13 15z" fill="#8cbfdb" />
       <path d="M17 39l14 12M14 55l9-12" stroke="#ed7069" stroke-width="5" />
-    {:else if id === 'whistle'}
-      <path d="M17 30l6-15h18l7 15-9 22H26z" fill="#dedddd" />
+    {:else if id === 'whistle' || id === 'whistle_promotion'}
+      <path d="M17 30l6-15h18l7 15-9 22H26z" fill={id === 'whistle_promotion' ? '#f02d8a' : '#dedddd'} />
       <circle cx="28" cy="30" r="3" fill="#303034" />
       <circle cx="38" cy="30" r="3" fill="#303034" />
       <path d="M30 39h7M31 16V6" stroke="#555555" />

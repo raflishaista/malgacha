@@ -11,9 +11,10 @@ import {
   rerollFilter,
   type ItemId
 } from '../items';
-import { generateBaseStats } from '../stats';
+import { generateBaseStats, STAT_RULES, type BaseStats } from '../stats';
 import { rarityFor } from '../rarity';
 import { abilityIds, IMPLEMENTED_ABILITIES } from '../battle/abilities';
+import { rollStage } from '../stages';
 import { fusePair, RARITY_ORDER } from './item-effects';
 
 export function newUnit(
@@ -62,7 +63,7 @@ export function randomPoolUnit(job: Job, random = Math.random, ur = false): Jour
 }
 
 export function victoryRerollPool(job: Job, target: JourneyCharacter) {
-  const filter = rerollFilter(job.inventory ?? []);
+  const filter = rerollFilter(job.inventory ?? [], job.filterBonus ?? 0);
   const stone = relicCount(job.inventory ?? [], 'stone');
   const starterIds = new Set(job.starterTeam?.map((c) => c.id));
 
@@ -80,7 +81,17 @@ export function victoryRerollPool(job: Job, target: JourneyCharacter) {
 }
 
 export type InventoryAction = {
-  action: 'claim' | 'equip' | 'use' | 'catch' | 'replace-catch' | 'place-wildcard' | 'wish' | 'dismiss-fusion';
+  action:
+    | 'claim'
+    | 'equip'
+    | 'use'
+    | 'catch'
+    | 'replace-catch'
+    | 'place-wildcard'
+    | 'wish'
+    | 'dismiss-fusion'
+    | 'reroll-reward'
+    | 'reroll-stage';
   item?: string;
   target?: string;
   reward?: string;
@@ -99,7 +110,10 @@ function grantItem(job: Job, id: ItemId, random: () => number) {
   }
 
   job.inventory ??= [];
-  job.inventory.push({ instanceId: randomUUID(), itemId: id });
+  const count = id === 'pokeball' ? 5 : id === 'greatball' ? 3 : 1;
+  for (let i = 0; i < count; i++) {
+    job.inventory.push({ instanceId: randomUUID(), itemId: id });
+  }
 }
 
 export function inventoryView(job: Job) {
@@ -110,6 +124,7 @@ export function inventoryView(job: Job) {
     fusionNotice: Boolean(job.fusionNotice),
     encounter: job.encounter ?? null,
     lives: job.lives ?? 3,
+    filterBonus: job.filterBonus ?? 0,
     arenaWins: job.arenaWins ?? 0,
     inventory: job.inventory ?? [],
     itemReward: job.itemReward ?? null,
@@ -134,12 +149,52 @@ export function applyInventoryAction(
     return;
   }
 
+  if (action.action === 'reroll-reward') {
+    if (relicCount(job.inventory, 'license') === 0) {
+      throw new Error('Hunter’s License required to reroll item rewards.');
+    }
+    if (!job.itemReward) {
+      throw new Error('No item reward to reroll.');
+    }
+    if (job.itemReward.rerolled) {
+      throw new Error('Item reward has already been rerolled.');
+    }
+    job.itemReward.choices = rewardChoices(job.inventory, random);
+    job.itemReward.rerolled = true;
+    return;
+  }
+
+  if (action.action === 'reroll-stage') {
+    if (relicCount(job.inventory, 'door') === 0) {
+      throw new Error('Dokodemo Door required to reroll the stage.');
+    }
+    if (!job.encounter?.stage) {
+      throw new Error('No stage to reroll.');
+    }
+    if (job.encounter.stageRerolled) {
+      throw new Error('Stage has already been rerolled.');
+    }
+    if (job.encounter.result) {
+      throw new Error('Battle already fought.');
+    }
+    let nextStage = rollStage(random);
+    while (nextStage === job.encounter.stage) {
+      nextStage = rollStage(random);
+    }
+    job.encounter.stage = nextStage;
+    job.encounter.stageRerolled = true;
+    return;
+  }
+
   if (action.action === 'replace-catch') {
     if (!job.pendingCatch) {
       throw new Error('No caught unit is waiting.');
     }
-    const index = team.findIndex((c) => c.instanceId === action.target);
-    if (index < 0) {
+    let index = team.findIndex((c) => c.instanceId === action.target);
+    if (index < 0 && typeof action.target === 'string' && /^\d+$/.test(action.target)) {
+      index = parseInt(action.target, 10);
+    }
+    if (index < 0 || index >= team.length) {
       throw new Error('Choose a team slot.');
     }
     team[index] = job.pendingCatch;
@@ -151,8 +206,17 @@ export function applyInventoryAction(
     if (!job.pendingWildCard) {
       throw new Error('No Wild Card unit is waiting.');
     }
-    const index = team.findIndex((c) => c.instanceId === action.target);
+    let index = team.findIndex((c) => c.instanceId === action.target);
+    if (index < 0 && typeof action.target === 'string' && /^\d+$/.test(action.target)) {
+      index = parseInt(action.target, 10);
+    }
     if (index < 0) {
+      const emptyIdx = team.findIndex((c) => c.empty);
+      if (emptyIdx >= 0) {
+        index = emptyIdx;
+      }
+    }
+    if (index < 0 || index >= team.length) {
       throw new Error('Choose a team slot.');
     }
     team[index] = job.pendingWildCard;
@@ -220,6 +284,16 @@ export function applyInventoryAction(
   const item = job.inventory[index];
   const definition = ITEMS[item.itemId];
 
+  if (action.action === 'use' && item.itemId === 'senzubean') {
+    if ((job.lives ?? 3) >= 3) {
+      throw new Error('Life is already full.');
+    }
+    job.lives = Math.min(3, (job.lives ?? 3) + 1);
+    job.itemNotice = 'Senzu Bean consumed. Restored 1 life!';
+    job.inventory.splice(index, 1);
+    return;
+  }
+
   if (action.action === 'catch') {
     if (!isBall(item.itemId)) {
       throw new Error('Choose a Poké Ball.');
@@ -267,8 +341,10 @@ export function applyInventoryAction(
   const target = team[targetIndex];
   if (!canUseOn(item.itemId, target)) {
     throw new Error(
-      item.itemId === 'arrow'
-        ? 'This unit already has three passive abilities.'
+      item.itemId === 'arrow' || item.itemId === 'devilfruit'
+        ? item.itemId === 'devilfruit' && target.devilFruit
+          ? 'This unit has already consumed a Devil Fruit.'
+          : 'This unit already has three passive abilities.'
         : definition.category === 'equipment'
           ? 'This unit already has three equipped items.'
           : 'This unit cannot use that item.'
@@ -346,6 +422,46 @@ export function applyInventoryAction(
       } else {
         team[targetIndex] = emptySlot();
       }
+    } else if (item.itemId === 'devilfruit') {
+      if (target.devilFruit) {
+        throw new Error('This unit has already consumed a Devil Fruit.');
+      }
+      const existing = abilityIds(target);
+      if (existing.length >= 3) {
+        throw new Error(
+          'This unit already has three passive abilities. Your item was not used.'
+        );
+      }
+      const available = IMPLEMENTED_ABILITIES.filter((id) => !existing.includes(id));
+      const chosenId = available[Math.floor(random() * available.length)];
+      target.removedAbilities = target.removedAbilities?.filter((a) => a !== chosenId);
+      target.extraAbilities = [...(target.extraAbilities ?? []), chosenId];
+      target.devilFruit = true;
+      job.itemNotice = `${target.name} gained a new ability from the Devil Fruit!`;
+    } else if (item.itemId === 'whistle_promotion') {
+      const currentRarity = (target.rarityOverride ?? target.statRarity ?? rarityFor(target.favorites) ?? 'N') as 'N' | 'R' | 'SR' | 'SSR' | 'UR';
+      const NEXT_RARITY: Record<'N' | 'R' | 'SR' | 'SSR', 'R' | 'SR' | 'SSR' | 'UR'> = {
+        N: 'R',
+        R: 'SR',
+        SR: 'SSR',
+        SSR: 'UR'
+      };
+      if (currentRarity === 'UR' || !(currentRarity in NEXT_RARITY)) {
+        throw new Error('This unit is already at max rarity (UR).');
+      }
+      const nextRarity = NEXT_RARITY[currentRarity as keyof typeof NEXT_RARITY];
+      const bstBoost = STAT_RULES[nextRarity].bst - STAT_RULES[currentRarity].bst;
+      const stats: (keyof BaseStats)[] = ['hp', 'attack', 'defense', 'speed'];
+      const perStat = Math.floor(bstBoost / stats.length);
+      let remainder = bstBoost % stats.length;
+      for (const stat of stats) {
+        const boost = perStat + (remainder > 0 ? 1 : 0);
+        if (remainder > 0) remainder--;
+        target.baseStats[stat] += boost;
+      }
+      target.statRarity = nextRarity;
+      target.rarityOverride = nextRarity;
+      job.itemNotice = `Promoted ${target.name} to ${nextRarity}!`;
     }
   } else {
     throw new Error('Invalid inventory action.');

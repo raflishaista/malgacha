@@ -74,3 +74,43 @@ it('a wish consumes seven balls once and gives a fresh instance of the selected 
   const action={action:'wish' as const,character:42,target:j.starterTeam![0] instanceof Object ? (j.starterTeam![0] as JourneyCharacter).instanceId : ''};
   applyInventoryAction(j,action,seeded());expect(j.inventory).toHaveLength(1);expect(j.starterTeam![0].id).toBe(42);expect((j.starterTeam![0] as JourneyCharacter).statRarity).toBe('UR');expect(()=>applyInventoryAction(j,action)).toThrow('seven');
 });
+
+it('Whistle Promotion promotes a unit to the next rarity tier and splits BST boost evenly across stats', () => {
+  const j = job();
+  const target = j.starterTeam![0] as JourneyCharacter;
+  target.statRarity = 'N';
+  target.baseStats = { hp: 125, attack: 125, defense: 125, speed: 125 };
+  const item = grant(j, 'whistle_promotion');
+
+  expect(canUseOn('whistle_promotion', target)).toBe(true);
+
+  // N -> R: +20 BST -> +5 to hp, atk, def, spd
+  applyInventoryAction(j, { action: 'use', item, target: target.instanceId });
+  expect(target.statRarity).toBe('R');
+  expect(target.rarityOverride).toBe('R');
+  expect(target.baseStats).toEqual({ hp: 130, attack: 130, defense: 130, speed: 130 });
+  expect(j.itemNotice).toContain('Promoted');
+
+  // R -> SR: +25 BST -> total 545
+  const item2 = grant(j, 'whistle_promotion');
+  applyInventoryAction(j, { action: 'use', item: item2, target: target.instanceId });
+  expect(target.statRarity).toBe('SR');
+  expect(statTotal(target.baseStats)).toBe(545);
+
+  // SR -> SSR: +25 BST -> total 570
+  const item3 = grant(j, 'whistle_promotion');
+  applyInventoryAction(j, { action: 'use', item: item3, target: target.instanceId });
+  expect(target.statRarity).toBe('SSR');
+  expect(statTotal(target.baseStats)).toBe(570);
+
+  // SSR -> UR: +30 BST -> total 600
+  const item4 = grant(j, 'whistle_promotion');
+  applyInventoryAction(j, { action: 'use', item: item4, target: target.instanceId });
+  expect(target.statRarity).toBe('UR');
+  expect(statTotal(target.baseStats)).toBe(600);
+
+  // UR cannot be promoted
+  expect(canUseOn('whistle_promotion', target)).toBe(false);
+  const item5 = grant(j, 'whistle_promotion');
+  expect(() => applyInventoryAction(j, { action: 'use', item: item5, target: target.instanceId })).toThrow();
+});
